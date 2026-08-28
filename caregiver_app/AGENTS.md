@@ -86,3 +86,8 @@ so nothing gets hardcoded to "the one patient."
 - [ ] Charts responsive — checked at mobile width
 - [ ] All new backend calls routed through `src/services/api.js` and logged in
       `docs/API_ENDPOINTS_NEEDED.md`
+
+## Scope Discipline
+- Only create or modify files explicitly listed in the current task/prompt.
+- Never refactor, restyle, or "improve" existing files that weren't part of the stated task, even if you notice something that could be better — flag it as a suggestion instead.
+- If a task seems to require touching a file outside the stated scope, STOP and ask before proceeding.
