@@ -1,5 +1,5 @@
 # Design System Rules — read before writing any UI code
-This project has one canonical design system: /docs/BRAND_GUIDELINES.md
+This project has one canonical design system: ../../docs/BRAND_GUIDELINES.md
 
 1. Flutter: import and reuse `patientTheme` from lib/theme/theme.dart.
    Never define a new ThemeData, never use raw Color(0x...) values,
