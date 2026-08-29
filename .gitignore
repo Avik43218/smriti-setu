@@ -4,3 +4,6 @@ backend/venv/
 backend/__pycache__/
 .env
 
+# Files
+
+assets/file-structure.md
