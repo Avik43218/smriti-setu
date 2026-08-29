@@ -1,0 +1,18 @@
+
+venv/
+__pycache__/
+.env
+
+IcePanel_Arch.json
+
+# Other problem statements
+PS26047.md
+PS26066.md
+PS26073.md
+PS26104.md
+PS26124.md
+PS26156.md
+PS26159.md
+PS26187.md
+PS26188.md
+
