@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Annotated
 
 from beanie import Document, Indexed
 from pydantic import Field
@@ -18,7 +18,7 @@ class DriftMetric(Document):
     """Snapshot of the Pillar 3 linear-regression fit over a rolling window."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    patient_id: Indexed(uuid.UUID)
+    patient_id: Annotated[uuid.UUID, Indexed()]
     window_days: int  # 7 or 30
     slope: float  # beta_1
     intercept: float  # beta_0
@@ -34,7 +34,7 @@ class Alert(Document):
     """Caregiver-facing alert: drift trend or a same-day anomaly."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    patient_id: Indexed(uuid.UUID)
+    patient_id: Annotated[uuid.UUID, Indexed()]
     alert_type: str  # cognitive_drift | anomaly
     severity: AlertSeverity = AlertSeverity.medium
     message: str

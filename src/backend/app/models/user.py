@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Optional, Annotated
 
 from beanie import Document, Indexed
 from pydantic import Field
@@ -18,15 +18,16 @@ class User(Document):
     no credentials of their own — `caregiver_id` links a patient doc back
     to the caregiver who paired the tablet."""
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    firebase_uid: Indexed(str, unique=True)
-    role: RoleEnum
-    name: str
-    email: Optional[Indexed(str, unique=True, sparse=True)] = None  # caregivers only
-    region_language: str = "bn"  # as / bn / mni ...
-    caregiver_id: Optional[Indexed(uuid.UUID)] = None  # set on patient docs
-    device_id: Optional[Indexed(str, unique=True, sparse=True)] = None  # patient tablet pairing
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    class User(Document):
+        id: uuid.UUID = Field(default_factory=uuid.uuid4)
+        firebase_uid: Annotated[str, Indexed(unique=True)]
+        role: RoleEnum
+        name: str
+        email: Optional[Annotated[str, Indexed(unique=True, sparse=True)]] = None
+        region_language: str = "bn"
+        caregiver_id: Optional[Annotated[uuid.UUID, Indexed()]] = None
+        device_id: Optional[Annotated[str, Indexed(unique=True, sparse=True)]] = None
+        created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
         name = "users"
@@ -39,7 +40,7 @@ class DevicePairingToken(Document):
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     caregiver_id: uuid.UUID
     patient_id: Optional[uuid.UUID] = None
-    token: Indexed(str, unique=True)
+    token: Annotated[str, Indexed(unique=True)]
     expires_at: datetime
     used: bool = False
 

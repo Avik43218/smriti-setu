@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Annotated
 
 from beanie import Document, Indexed
 from pydantic import Field
@@ -12,8 +12,8 @@ class GameSession(Document):
     Pillar 3 (drift / anomaly detection)."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    patient_id: Indexed(uuid.UUID)
-    client_session_id: Indexed(str, unique=True)  # idempotency key for sync
+    patient_id: Annotated[uuid.UUID, Indexed()]
+    client_session_id: Annotated[str, Indexed(unique=True)]  # idempotency key for sync
 
     game_type: str  # pattern_matcher | sound_hunt | path_tracker | recall
     difficulty_level: str  # e.g. "3x2", "4x4"
@@ -37,8 +37,8 @@ class VoiceInteraction(Document):
     by Pillar 2's NLU classifier at sync time."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    patient_id: Indexed(uuid.UUID)
-    client_session_id: Indexed(str, unique=True)
+    patient_id: Annotated[uuid.UUID, Indexed()]
+    client_session_id: Annotated[str, Indexed(unique=True)]
 
     transcript: Optional[str] = None
     language: str = "bn"
