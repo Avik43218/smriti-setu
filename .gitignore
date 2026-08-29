@@ -1,4 +1,31 @@
-# Files
+# Dependencies
+node_modules/
 
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Python & Backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+
+# Files
 assets/file-structure.md
 src/backend/.env.example
