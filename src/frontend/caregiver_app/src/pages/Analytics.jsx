@@ -1,7 +1,10 @@
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { TrendingUp, Clock } from 'lucide-react';
 
 export const Analytics = () => {
+  const { id } = useParams();
+
   return (
     <div className="space-y-6">
       <div className="bg-surface dark:bg-ink-soft/20 border border-border dark:border-ink-soft/40 rounded-card p-6 sm:p-8 shadow-sm transition-colors">
@@ -12,7 +15,7 @@ export const Analytics = () => {
               <span>Coming Soon</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-ink dark:text-cream tracking-tight">
-              Analytics & Trends
+              Analytics & Trends {id ? `• Patient ${id}` : ''}
             </h1>
             <p className="text-sm text-ink-soft dark:text-cream/70 mt-1.5 max-w-xl leading-relaxed">
               Historical activity tracking, cognitive drift indices, and longitudinal chart visualizers powered by Smriti Setu clinical metrics will be available here.

@@ -91,3 +91,8 @@ so nothing gets hardcoded to "the one patient."
 - Only create or modify files explicitly listed in the current task/prompt.
 - Never refactor, restyle, or "improve" existing files that weren't part of the stated task, even if you notice something that could be better — flag it as a suggestion instead.
 - If a task seems to require touching a file outside the stated scope, STOP and ask before proceeding.
+
+## Standing Assumptions (don't restate these per-task)
+- Always verify light/dark mode correctness — no need to ask for this per prompt.
+- Always use existing design tokens/patterns — already covered above.
+- Only touch files relevant to the current task.
