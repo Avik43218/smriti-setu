@@ -4,6 +4,7 @@ import React, { useRef, useEffect } from 'react';
  * OtpInput Component
  * 
  * 6-digit segmented numeric input using design system tokens.
+ * Supports light and dark mode with terracotta focus states.
  * 
  * @param {string} value - The 6-digit OTP string
  * @param {function} onChange - Callback receiving the updated OTP string
@@ -106,10 +107,10 @@ export const OtpInput = ({
           disabled={disabled}
           onChange={(e) => handleChange(index, e)}
           onKeyDown={(e) => handleKeyDown(index, e)}
-          className={`w-10 h-12 sm:w-12 sm:h-12 text-center text-lg font-bold text-ink bg-cream border rounded-lg transition-colors focus:outline-none focus:ring-1 focus:ring-terracotta disabled:opacity-60 disabled:cursor-not-allowed ${
+          className={`w-10 h-12 sm:w-12 sm:h-12 text-center text-lg font-bold text-ink dark:text-cream bg-cream dark:bg-ink-soft/20 border rounded-lg transition-colors focus:outline-none focus:ring-1 focus:ring-terracotta disabled:opacity-60 disabled:cursor-not-allowed ${
             hasError
               ? 'border-terracotta'
-              : 'border-border focus:border-terracotta'
+              : 'border-border/80 dark:border-ink-soft/40 focus:border-terracotta'
           }`}
         />
       ))}

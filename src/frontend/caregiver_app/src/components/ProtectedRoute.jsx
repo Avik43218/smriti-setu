@@ -15,9 +15,9 @@ export const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-3 font-sans">
-        <div className="w-8 h-8 border-3 border-border border-t-terracotta rounded-full animate-spin" />
-        <p className="text-sm font-medium text-ink-soft">
+      <div className="min-h-screen bg-cream dark:bg-ink text-ink dark:text-cream flex flex-col items-center justify-center gap-3 font-sans transition-colors duration-200">
+        <div className="w-8 h-8 border-2 border-border dark:border-ink-soft/40 border-t-terracotta dark:border-t-terracotta rounded-full animate-spin" />
+        <p className="text-sm font-medium text-ink-soft dark:text-cream/70">
           Verifying session...
         </p>
       </div>
