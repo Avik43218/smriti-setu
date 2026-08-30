@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { HeartHandshake, LogIn, AlertCircle, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { TopControls } from '../components/TopControls';
+import {
+  HeartHandshake,
+  LogIn,
+  AlertCircle,
+  ShieldCheck,
+  ArrowLeft,
+} from 'lucide-react';
 import { OtpInput } from '../components/OtpInput';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -118,51 +125,60 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-cream flex flex-col justify-center items-center p-4 font-sans">
-      <div className="w-full max-w-md">
-        {/* Header Branding */}
+    <div className="min-h-screen bg-cream dark:bg-ink text-ink dark:text-cream flex flex-col justify-center items-center p-4 font-sans relative transition-colors duration-200">
+      {/* Top-Right Controls: Theme Toggle Only (no settings) */}
+      <TopControls showSettings={false} />
+
+      <div className="w-full max-w-md my-auto pt-6 pb-8">
+        {/* Header Branding with Smriti Setu */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-card bg-surface border border-border shadow-sm mb-4">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-card bg-surface dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 shadow-xs mb-3">
             <HeartHandshake className="w-8 h-8 text-terracotta" />
           </div>
-          <h1 className="text-2xl font-bold text-ink tracking-tight">
-            Caregiver Portal
-          </h1>
-          <p className="text-sm text-ink-soft mt-1">
-            {step === 'credentials'
-              ? 'Sign in to access your patient care dashboard'
-              : 'Two-factor verification'}
-          </p>
+          
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cream dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 text-terracotta text-[11px] font-semibold uppercase tracking-wider mb-1">
+              Caregiver Portal
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-ink dark:text-cream tracking-tight font-sans">
+              Smriti Setu
+            </h1>
+            <p className="text-xs sm:text-sm text-ink-soft dark:text-cream/70 mt-1 max-w-sm mx-auto leading-relaxed">
+              {step === 'credentials'
+                ? 'Cognitive Assist Platform • Sign in to your caregiver dashboard'
+                : 'Two-factor authentication • Enter your verification code'}
+            </p>
+          </div>
         </div>
 
         {/* Login Card */}
-        <div className="bg-surface border border-border rounded-card p-6 sm:p-8 shadow-sm">
+        <div className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 sm:p-8 shadow-sm transition-colors">
           {submitError && (
-            <div className="mb-5 p-3.5 bg-cream border border-border rounded-lg flex items-start gap-2.5">
+            <div className="mb-5 p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-start gap-2.5">
               <AlertCircle className="w-5 h-5 text-terracotta shrink-0 mt-0.5" />
-              <p className="text-xs sm:text-sm text-ink font-medium leading-relaxed">
+              <p className="text-xs sm:text-sm text-ink dark:text-cream font-medium leading-relaxed">
                 {submitError}
               </p>
             </div>
           )}
 
           {resendNotice && (
-            <div className="mb-5 p-3.5 bg-cream border border-border rounded-lg flex items-start gap-2.5">
+            <div className="mb-5 p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-start gap-2.5">
               <ShieldCheck className="w-5 h-5 text-sage shrink-0 mt-0.5" />
-              <p className="text-xs sm:text-sm text-ink font-medium leading-relaxed">
+              <p className="text-xs sm:text-sm text-ink dark:text-cream font-medium leading-relaxed">
                 {resendNotice}
               </p>
             </div>
           )}
 
-          {/* STEP 1: Credentials Form (existing layout & classes preserved) */}
+          {/* STEP 1: Credentials Form */}
           {step === 'credentials' && (
             <form onSubmit={handleCredentialsSubmit} noValidate className="space-y-4">
               {/* Email Field */}
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-xs font-semibold uppercase tracking-wider text-ink-soft mb-1.5"
+                  className="block text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/70 mb-1.5"
                 >
                   Email Address
                 </label>
@@ -178,8 +194,10 @@ export const Login = () => {
                     }
                   }}
                   placeholder="caregiver@example.com"
-                  className={`w-full px-3.5 py-2.5 bg-cream border rounded-lg text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors ${
-                    errors.email ? 'border-terracotta' : 'border-border focus:border-terracotta'
+                  className={`w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/20 border rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/40 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors ${
+                    errors.email
+                      ? 'border-terracotta'
+                      : 'border-border/80 dark:border-ink-soft/40 focus:border-terracotta'
                   }`}
                   disabled={isSubmitting || loading}
                 />
@@ -195,7 +213,7 @@ export const Login = () => {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-xs font-semibold uppercase tracking-wider text-ink-soft mb-1.5"
+                  className="block text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/70 mb-1.5"
                 >
                   Password
                 </label>
@@ -211,8 +229,10 @@ export const Login = () => {
                     }
                   }}
                   placeholder="••••••••"
-                  className={`w-full px-3.5 py-2.5 bg-cream border rounded-lg text-sm text-ink placeholder:text-ink-soft/60 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors ${
-                    errors.password ? 'border-terracotta' : 'border-border focus:border-terracotta'
+                  className={`w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/20 border rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/40 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors ${
+                    errors.password
+                      ? 'border-terracotta'
+                      : 'border-border/80 dark:border-ink-soft/40 focus:border-terracotta'
                   }`}
                   disabled={isSubmitting || loading}
                 />
@@ -247,14 +267,14 @@ export const Login = () => {
             </form>
           )}
 
-          {/* STEP 2: OTP Verification Form (new step) */}
+          {/* STEP 2: OTP Verification Form */}
           {step === 'otp' && (
             <form onSubmit={handleOtpSubmit} noValidate className="space-y-5">
               <div className="text-center">
-                <p className="text-xs sm:text-sm text-ink leading-relaxed">
+                <p className="text-xs sm:text-sm text-ink dark:text-cream leading-relaxed">
                   Enter the 6-digit security code sent to
                 </p>
-                <p className="text-xs sm:text-sm font-semibold text-ink truncate mt-0.5">
+                <p className="text-xs sm:text-sm font-semibold text-ink dark:text-cream truncate mt-0.5">
                   {email}
                 </p>
               </div>
@@ -270,7 +290,7 @@ export const Login = () => {
                     }
                   }}
                   onComplete={() => {
-                    // Optional: auto-submit when all 6 digits are typed
+                    // Optional auto-submit
                   }}
                   disabled={isSubmitting || loading}
                   hasError={Boolean(errors.otp)}
@@ -310,7 +330,7 @@ export const Login = () => {
                   type="button"
                   onClick={handleBackToCredentials}
                   disabled={isSubmitting || loading}
-                  className="text-ink-soft hover:text-ink font-medium transition-colors flex items-center gap-1 focus:outline-none"
+                  className="text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream font-medium transition-colors flex items-center gap-1 focus:outline-none"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Change email</span>
@@ -329,9 +349,9 @@ export const Login = () => {
           )}
         </div>
 
-        {/* Footer info */}
-        <p className="text-center text-xs text-ink-soft mt-6">
-          Caregiver Management Portal • Recognition over Recall
+        {/* Footer info with Smriti Setu branding */}
+        <p className="text-center text-xs text-ink-soft dark:text-cream/60 mt-6 font-sans">
+          Smriti Setu • Cognitive Assist Platform
         </p>
       </div>
     </div>
