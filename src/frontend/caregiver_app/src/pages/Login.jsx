@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { IconButton } from '../components/IconButton';
+import { TopControls } from '../components/TopControls';
 import {
   HeartHandshake,
   LogIn,
   AlertCircle,
   ShieldCheck,
   ArrowLeft,
-  Sun,
-  Moon,
 } from 'lucide-react';
 import { OtpInput } from '../components/OtpInput';
 
@@ -20,7 +17,6 @@ export const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, requestOtp, verifyOtp, isAuthenticated, loading } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   // Multi-step authentication state: 'credentials' | 'otp'
   const [step, setStep] = useState('credentials');
@@ -130,21 +126,10 @@ export const Login = () => {
 
   return (
     <div className="min-h-screen bg-cream dark:bg-ink text-ink dark:text-cream flex flex-col justify-center items-center p-4 font-sans relative transition-colors duration-200">
-      {/* Top-Right Theme Toggle Button using standardized IconButton */}
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
-        <IconButton
-          onClick={toggleTheme}
-          ariaLabel={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-gold animate-in spin-in-90 duration-200" />
-          ) : (
-            <Moon className="w-4 h-4 animate-in spin-in-90 duration-200" />
-          )}
-        </IconButton>
-      </div>
+      {/* Top-Right Controls: Theme Toggle Only (no settings) */}
+      <TopControls showSettings={false} />
 
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md my-auto pt-6 pb-8">
         {/* Header Branding with Smriti Setu */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-card bg-surface dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 shadow-xs mb-3">

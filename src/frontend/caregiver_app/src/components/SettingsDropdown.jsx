@@ -81,7 +81,7 @@ export const SettingsDropdown = ({ isOpen, onClose }) => {
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute right-0 top-full mt-3 w-64 bg-surface dark:bg-ink border border-border dark:border-ink-soft/40 rounded-card shadow-xl p-3 z-50 transition-all font-sans"
+          className="absolute right-0 top-full mt-3 w-64 bg-surface dark:bg-ink border border-border dark:border-ink-soft/40 rounded-card shadow-xl p-3 z-50 transition-all font-sans animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header Title */}
           <div className="px-2.5 pt-1 pb-2 flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 mb-2">

@@ -1,145 +1,99 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
-import { useTheme } from '../context/ThemeContext';
-import { SettingsDropdown } from './SettingsDropdown';
-import { IconButton } from './IconButton';
+import React, { useState, useRef } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
-  HeartHandshake,
-  Sun,
-  Moon,
-  Settings,
+  LayoutDashboard,
+  TrendingUp,
+  CalendarCheck,
 } from 'lucide-react';
 
+const DOCK_ITEMS = [
+  {
+    id: 'dashboard',
+    name: 'Dashboard',
+    path: '/dashboard',
+    icon: LayoutDashboard,
+  },
+  {
+    id: 'analytics',
+    name: 'Analytics',
+    path: '/analytics',
+    icon: TrendingUp,
+  },
+  {
+    id: 'care-plan',
+    name: 'Care Plan',
+    path: '/care-plan',
+    icon: CalendarCheck,
+  },
+];
+
 export const Navbar = () => {
-  const { theme, toggleTheme } = useTheme();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const location = useLocation();
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const dockRef = useRef(null);
 
-  const navLinks = [
-    { name: 'Dashboard', path: '/dashboard' },
-    { name: 'Analytics', path: '/analytics' },
-    { name: 'Care Plan', path: '/care-plan' },
-  ];
-
-  const linkRefs = useRef({});
-  const [indicatorStyle, setIndicatorStyle] = useState({
-    left: 0,
-    width: 0,
-    opacity: 0,
-  });
-
-  const updateIndicator = () => {
-    const currentPath = location.pathname;
-    const activeLink = navLinks.find((l) => l.path === currentPath);
-    const activeEl = activeLink ? linkRefs.current[activeLink.path] : null;
-
-    if (activeEl) {
-      setIndicatorStyle({
-        left: activeEl.offsetLeft,
-        width: activeEl.offsetWidth,
-        opacity: 1,
-      });
-    } else {
-      setIndicatorStyle((prev) => ({ ...prev, opacity: 0 }));
-    }
+  const getScale = (index) => {
+    if (hoveredIndex === null) return 1;
+    const distance = Math.abs(hoveredIndex - index);
+    if (distance === 0) return 1.35;
+    if (distance === 1) return 1.15;
+    return 1;
   };
 
-  useEffect(() => {
-    updateIndicator();
-    const timer = setTimeout(updateIndicator, 50);
-    window.addEventListener('resize', updateIndicator);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', updateIndicator);
-    };
-  }, [location.pathname]);
-
   return (
-    <header className="sticky top-3 sm:top-5 z-40 w-full max-w-5xl mx-auto px-3 sm:px-6">
-      <nav className="w-full bg-surface/90 dark:bg-ink/90 backdrop-blur-md border border-border dark:border-ink-soft/40 rounded-full px-3 py-2 sm:px-5 sm:py-2.5 shadow-md flex items-center justify-between transition-colors">
-        {/* Brand Logo & Name: Smriti Setu */}
-        <Link
-          to="/dashboard"
-          className="flex items-center gap-2.5 text-ink dark:text-cream hover:opacity-90 transition-opacity shrink-0"
-        >
-          <div className="w-8 h-8 rounded-full bg-cream/70 dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shadow-xs">
-            <HeartHandshake className="w-4 h-4" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-xs sm:text-sm tracking-tight text-ink dark:text-cream leading-tight">
-              Smriti Setu
-            </span>
-            <span className="text-[10px] text-ink-soft dark:text-cream/60 leading-none hidden sm:inline">
-              Caregiver Portal
-            </span>
-          </div>
-        </Link>
+    <nav
+      ref={dockRef}
+      aria-label="Top Navigation Dock"
+      onMouseLeave={() => setHoveredIndex(null)}
+      className="fixed top-3.5 sm:top-5 left-1/2 -translate-x-1/2 z-40 flex items-end gap-4 sm:gap-6 px-4 py-2 sm:px-6 sm:py-2.5 bg-surface/90 dark:bg-ink/90 backdrop-blur-md border border-border/80 dark:border-ink-soft/40 rounded-full shadow-xl transition-colors duration-200 select-none"
+    >
+      {DOCK_ITEMS.map((item, index) => {
+        const isActive = location.pathname === item.path;
+        const Icon = item.icon;
+        const scale = getScale(index);
 
-        {/* Center Nav Links with Animated Sliding Indicator */}
-        <div className="relative flex items-center p-1 bg-cream/70 dark:bg-ink-soft/20 border border-border/70 dark:border-ink-soft/30 rounded-full">
-          {/* Sliding Indicator Element */}
+        return (
           <div
-            className="absolute top-1 bottom-1 left-0 rounded-full bg-terracotta shadow-sm pointer-events-none transition-all duration-300 ease-out z-0"
-            style={{
-              transform: `translateX(${indicatorStyle.left}px)`,
-              width: `${indicatorStyle.width}px`,
-              opacity: indicatorStyle.opacity,
-            }}
-          />
-
-          {navLinks.map((link) => {
-            const isActive = location.pathname === link.path;
-            return (
-              <NavLink
-                key={link.path}
-                to={link.path}
-                ref={(el) => (linkRefs.current[link.path] = el)}
-                className={`relative z-10 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors duration-200 ${
-                  isActive
-                    ? 'text-surface font-semibold'
-                    : 'text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream'
-                }`}
-              >
-                {link.name}
-              </NavLink>
-            );
-          })}
-        </div>
-
-        {/* Right Controls: Unified IconButtons for Theme Toggle & Settings */}
-        <div className="flex items-center gap-1.5 relative">
-          {/* Theme Toggle Button */}
-          <IconButton
-            onClick={toggleTheme}
-            ariaLabel={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            key={item.id}
+            onMouseEnter={() => setHoveredIndex(index)}
+            className="relative flex flex-col items-center group"
           >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-gold animate-in spin-in-90 duration-200" />
-            ) : (
-              <Moon className="w-4 h-4 animate-in spin-in-90 duration-200" />
-            )}
-          </IconButton>
-
-          {/* Settings Trigger */}
-          <div className="relative">
-            <IconButton
-              onClick={() => setIsSettingsOpen((prev) => !prev)}
-              ariaLabel="Settings menu"
-              ariaExpanded={isSettingsOpen}
-              isActive={isSettingsOpen}
+            {/* Magnified Dock Icon Button: Anchored at origin-bottom so it grows upward away from the dot */}
+            <NavLink
+              to={item.path}
+              aria-label={item.name}
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all duration-200 ease-out origin-bottom outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta ${
+                isActive
+                  ? 'bg-cream dark:bg-ink-soft/40 text-terracotta border border-terracotta/40 dark:border-terracotta/40 shadow-xs'
+                  : 'bg-cream/60 dark:bg-ink-soft/20 text-ink-soft dark:text-cream/80 border border-border/70 dark:border-ink-soft/30 hover:text-ink dark:hover:text-cream hover:bg-cream dark:hover:bg-ink-soft/35'
+              }`}
+              style={{
+                transform: `scale(${scale})`,
+              }}
             >
-              <Settings className="w-4 h-4" />
-            </IconButton>
+              <Icon className="w-5 h-5 sm:w-5.5 sm:h-5.5 transition-transform duration-200" />
+            </NavLink>
 
-            {/* Dropdown Menu */}
-            <SettingsDropdown
-              isOpen={isSettingsOpen}
-              onClose={() => setIsSettingsOpen(false)}
-            />
+            {/* Static Active Page Indicator Dot: Fixed size & position, pure opacity fade */}
+            <div className="w-full h-1.5 mt-1 flex items-center justify-center pointer-events-none">
+              <span
+                className={`w-1.5 h-1.5 rounded-full bg-terracotta transition-opacity duration-300 ${
+                  isActive ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
+            </div>
+
+            {/* macOS Dock Tooltip Label appearing BELOW each icon */}
+            <div
+              role="tooltip"
+              className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-ink/90 dark:bg-surface/95 text-surface dark:text-ink text-[11px] font-medium rounded-full shadow-md whitespace-nowrap opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-150 pointer-events-none z-50"
+            >
+              {item.name}
+            </div>
           </div>
-        </div>
-      </nav>
-    </header>
+        );
+      })}
+    </nav>
   );
 };
 
