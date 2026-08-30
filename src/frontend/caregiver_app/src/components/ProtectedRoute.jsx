@@ -2,13 +2,6 @@ import React from 'react';
 import { Navigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-/**
- * ProtectedRoute component guards routes requiring caregiver authentication.
- * 
- * - Shows a themed loading indicator while auth status is being evaluated.
- * - Redirects unauthenticated users to /login while capturing their attempted route.
- * - Supports both nested Route definitions (via Outlet) and wrapped children.
- */
 export const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();

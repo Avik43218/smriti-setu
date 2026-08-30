@@ -1,8 +1,8 @@
 # Dependencies
-node_modules/
+src/frontend/caregiver_app/node_modules/
 
 # Build outputs
-dist/
+src/frontend/caregiver_app/dist/
 build/
 
 # Environment files
@@ -29,3 +29,4 @@ Thumbs.db
 # Files
 assets/file-structure.md
 src/backend/.env.example
+src/frontend/caregiver_app/frontend_structure.md

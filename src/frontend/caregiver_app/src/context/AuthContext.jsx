@@ -9,16 +9,16 @@ import {
 const AuthContext = createContext(null);
 
 const STORAGE_KEYS = {
-  TOKEN: 'caregiver_auth_token',
+  TOKEN: 'token', 
   USER: 'caregiver_user_data',
 };
 
 export const AuthProvider = ({ children }) => {
+  // Pulls from the vault on first load
   const [token, setToken] = useState(() => {
     try {
       return localStorage.getItem(STORAGE_KEYS.TOKEN) || null;
     } catch (err) {
-      console.error('Failed to read auth token from storage:', err);
       return null;
     }
   });
@@ -28,43 +28,34 @@ export const AuthProvider = ({ children }) => {
       const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
       return savedUser ? JSON.parse(savedUser) : null;
     } catch (err) {
-      console.error('Failed to read caregiver data from storage:', err);
       return null;
     }
   });
 
   const [loading, setLoading] = useState(false);
 
-  // Sync state changes with localStorage
+  // Syncs the User data whenever it changes
   useEffect(() => {
-    try {
-      if (token) {
-        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.TOKEN);
-      }
-    } catch (err) {
-      console.error('Failed to persist auth token:', err);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    try {
-      if (caregiver) {
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(caregiver));
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.USER);
-      }
-    } catch (err) {
-      console.error('Failed to persist caregiver user:', err);
+    if (caregiver) {
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(caregiver));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.USER);
     }
   }, [caregiver]);
+
+  // Syncs the Token to keep it aligned with authService
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    }
+  }, [token]);
 
   const login = useCallback(async (email, password) => {
     setLoading(true);
     try {
-      const response = await apiLogin(email, password);
-      return response;
+      return await apiLogin(email, password);
     } finally {
       setLoading(false);
     }
