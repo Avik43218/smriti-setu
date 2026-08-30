@@ -1,12 +1,12 @@
+import uuid
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserOut(BaseModel):
-    id: UUID
+    id: uuid.UUID
     role: str
     name: str
     email: Optional[str] = None
@@ -15,13 +15,40 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
-class PatientPairOut(BaseModel):
-    token: str
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
     expires_at: datetime
 
 
-class PatientPairRequest(BaseModel):
-    token: str
+class CaregiverRegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str = Field(min_length=8)
+    region_language: str = "bn"
+
+
+class CaregiverLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class CaregiverAuthOut(BaseModel):
+    user: UserOut
+    token: TokenOut
+
+
+class PatientPairStartOut(BaseModel):
+    pairing_token: str
+    expires_at: datetime
+
+
+class PatientPairCompleteRequest(BaseModel):
+    pairing_token: str
     device_id: str
-    device_firebase_uid: str
     patient_name: str
+
+
+class PatientPairCompleteOut(BaseModel):
+    patient_id: uuid.UUID
+    token: TokenOut

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Optional, Annotated
 
@@ -13,29 +13,33 @@ class RoleEnum(str, Enum):
 
 
 class User(Document):
-    """Unified auth collection. Caregivers get real accounts (Firebase
-    email/OAuth/OTP). Patients are provisioned via device pairing and hold
-    no credentials of their own — `caregiver_id` links a patient doc back
-    to the caregiver who paired the tablet."""
+    """Unified auth collection — this *is* the credential store. Caregivers
+    register with email + password (bcrypt hash below, never the raw
+    password). Patients hold no credentials of their own: `caregiver_id`
+    links a patient doc back to the caregiver who paired the tablet, and
+    `device_id` identifies the paired hardware."""
 
-    class User(Document):
-        id: uuid.UUID = Field(default_factory=uuid.uuid4)
-        firebase_uid: Annotated[str, Indexed(unique=True)]
-        role: RoleEnum
-        name: str
-        email: Optional[Annotated[str, Indexed(unique=True, sparse=True)]] = None
-        region_language: str = "bn"
-        caregiver_id: Optional[Annotated[uuid.UUID, Indexed()]] = None
-        device_id: Optional[Annotated[str, Indexed(unique=True, sparse=True)]] = None
-        created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    role: RoleEnum
+    name: str
+
+    email: Optional[Annotated[str, Indexed(unique=True, sparse=True)]] = None  # caregivers only
+    hashed_password: Optional[str] = None  # caregivers only — bcrypt hash
+
+    region_language: str = "bn"  # as / bn / mni ...
+    caregiver_id: Optional[Annotated[uuid.UUID, Indexed()]] = None
+    device_id: Optional[Annotated[str, Indexed(unique=True, sparse=True)]] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "users"
 
 
 class DevicePairingToken(Document):
-    """Short-lived token behind the caregiver's QR code / magic link used to
-    lock a patient's tablet into Patient Mode."""
+    """Short-lived, single-use token behind the caregiver's QR code / magic
+    link, used to pair a patient's tablet into Patient Mode. Separate from
+    the JWT the device is issued once pairing completes."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     caregiver_id: uuid.UUID
