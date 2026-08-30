@@ -14,7 +14,7 @@ classes, no separate session/repository layer needed.
 ```
 app/
   main.py                 FastAPI app, router registration, CORS, startup (init_db)
-  config.py                 Settings (env-driven): Mongo URL/DB name, Firebase path, algorithm weights/thresholds
+  config.py                 Settings (env-driven): Mongo URL/DB name, JWT secret/expiry, algorithm weights/thresholds
   database.py                Motor client + Beanie init, registers every Document model
 
   models/                    Beanie Documents (== the MongoDB schema)
@@ -28,7 +28,7 @@ app/
     bandit.py                    Pillar 1: UCB1 multi-armed bandit + performance score S + threshold rules
     nlu.py                        Pillar 2: intent/entity extraction from STT transcripts
     drift.py                      Pillar 3: linear-regression cognitive drift + anomaly detection
-    security.py                   Firebase token verification, role-based dependencies
+    security.py                   Password hashing (bcrypt) + JWT issuance/verification, role-based dependencies
     alerts.py                     Alert persistence (+ TODO hook for push/email/SMS dispatch)
 
   services/                   Glue between API routes and core/ algorithms + DB
@@ -36,7 +36,7 @@ app/
     analytics_service.py          Runs drift + anomaly checks after each sync batch
 
   api/routes/
-    auth.py                       /auth/me, /auth/patient/pair/start, /auth/patient/pair/complete
+    auth.py                       /auth/caregiver/register, /auth/caregiver/login, /auth/me, /auth/patient/pair/start, /auth/patient/pair/complete
     sync.py                        POST /sync/batch  — the edge app's batched upload endpoint
     difficulty.py                  GET /difficulty/next/{game_type}  — Pillar 1
     voice.py                       POST /voice/classify  — Pillar 2 (debug/direct-test route)
@@ -77,8 +77,11 @@ requirements.txt
   invoked from `services/` right after a sync batch lands.
 - **Alerts** feedback arrow → `core/alerts.py` + `analytics_service.py`,
   surfaced through `api/routes/analytics.py` to the Caregiver Portal.
-- **Authentication** (unified role-based, Firebase) →
-  `core/security.py` + `models/user.py`.
+- **Authentication** (unified role-based, self-hosted) →
+  `core/security.py` + `models/user.py`. Diverges from the Firebase/Auth0
+  suggestion in `ARCHITECTURE.md` by design — credentials (bcrypt password
+  hashes) are stored directly in the `users` collection instead of an
+  external identity provider.
 
 ## Setup
 
@@ -87,7 +90,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# edit .env: MONGODB_URL, MONGODB_DB_NAME, FIREBASE_CREDENTIALS_PATH
+# edit .env: MONGODB_URL, MONGODB_DB_NAME, JWT_SECRET_KEY
 
 # either run MongoDB locally...
 docker run -d -p 27017:27017 --name cognitive-assist-mongo mongo:7
@@ -109,7 +112,7 @@ structure at the application layer).
 | Performance score S, threshold grid scaling | Real, matches the formula in ARCHITECTURE.md |
 | Linear regression drift + anomaly detection (Pillar 3) | Real (numpy), thresholds are tunable via `config.py` |
 | NLU intent/entity extraction (Pillar 2) | Keyword-matching placeholder — swap `core/nlu.py` for a trained/cloud classifier; the STT/VAD/TTS pipeline itself runs on-device per the architecture, this module only handles the transcript the edge app sends up |
-| Firebase auth verification | Real integration point, needs a live Firebase project + service account |
+| Password hashing + JWT auth (Pillar-adjacent, self-hosted) | Real — bcrypt hashing, JWT issuance/verification, no external provider. Rotate `JWT_SECRET_KEY` and put it behind a secrets manager before production |
 | Alert dispatch (push/email/SMS) | Persisted to Mongo; dispatch is a `# TODO` in `core/alerts.py` |
 | Drift/anomaly recompute cadence | Runs synchronously after every sync batch — fine at pilot scale; move to a scheduled worker (Celery beat / APScheduler) once patient volume grows |
 
@@ -127,5 +130,8 @@ pytest tests/
 
 Covers the bandit's explore/exploit behavior, the performance-score formula,
 threshold-based difficulty adaptation, drift detection on synthetic
-declining vs. stable score series, anomaly detection, and NLU entity
-extraction — all without needing a database or network connection.
+declining vs. stable score series, anomaly detection, NLU entity
+extraction, and the auth layer's password hashing + JWT issuance/
+verification — all without needing a database or network connection.
+(`get_current_user`'s DB lookup itself is the one piece that needs a live
+Mongo instance to exercise end-to-end.)
