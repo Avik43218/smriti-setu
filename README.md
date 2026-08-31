@@ -1,4 +1,4 @@
-# Smriti Setu
+# Cognitive Assist
 
 An offline-first, voice-enabled cognitive & memory assistance platform for
 elderly users — built around adaptive brain-training games, conversational
@@ -13,11 +13,14 @@ README is the map of the repo and how to get the backend running.
 
 Two users, one app, two experiences:
 
-- **Caregiver** — a real account (email/password, Google OAuth, or OTP via
-  Firebase Auth). Sees longitudinal cognitive-performance charts, task
-  completion rates, and alerts through the Caregiver Portal.
+- **Caregiver** — a real account: email + password, hashed with bcrypt and
+  stored in MongoDB (self-hosted, no external identity provider), with an
+  email one-time code as a second factor at login. Sees longitudinal
+  cognitive-performance charts, task completion rates, and alerts through
+  the Caregiver Portal.
 - **Patient** — no credentials. A caregiver pairs the patient's tablet once
-  via QR code / magic link, which locks it into a simplified, high-contrast
+  via a short-lived QR code / magic-link token; the device is then issued a
+  long-lived session token and locked into a simplified, high-contrast
   "Patient Mode" for games and voice check-ins.
 
 Everything the patient does is written locally first (SQLite/IndexedDB) and
@@ -75,7 +78,7 @@ The backend is the only piece currently implemented:
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # set MONGODB_URL, MONGODB_DB_NAME, FIREBASE_CREDENTIALS_PATH
+cp .env.example .env   # set MONGODB_URL, MONGODB_DB_NAME, JWT_SECRET_KEY
 uvicorn app.main:app --reload
 ```
 
@@ -84,7 +87,7 @@ are in [`backend/README.md`](./backend/README.md).
 
 ## Tech stack
 
-- **Backend:** FastAPI, MongoDB (Motor + Beanie), Firebase Auth
+- **Backend:** FastAPI, MongoDB (Motor + Beanie), self-hosted auth (bcrypt + JWT)
 - **Client (planned):** Flutter or React Native, SQLite/IndexedDB, Whisper.cpp / cloud STT, regional-accented TTS
 - **Algorithms:** UCB1 multi-armed bandit, linear regression drift detection, rule-based NLU (swappable for a trained classifier)
 
@@ -94,4 +97,3 @@ are in [`backend/README.md`](./backend/README.md).
 2. Replace the keyword-based NLU with a trained/cloud intent classifier
 3. Build the Caregiver Portal web dashboard
 4. Move Pillar 3 recompute off the request path and onto a scheduled worker
-

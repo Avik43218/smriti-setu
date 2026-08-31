@@ -21,6 +21,7 @@ app/
     user.py                    User (unified caregiver/patient), DevicePairingToken
     session.py                  GameSession, VoiceInteraction  (what edge devices sync up)
     analytics.py                 DriftMetric, Alert, BanditArmState
+    auth.py                       OtpCode (login 2FA challenges), RevokedToken (logout blacklist)
 
   schemas/                   Pydantic request/response models (auth, sync, analytics)
 
@@ -28,7 +29,8 @@ app/
     bandit.py                    Pillar 1: UCB1 multi-armed bandit + performance score S + threshold rules
     nlu.py                        Pillar 2: intent/entity extraction from STT transcripts
     drift.py                      Pillar 3: linear-regression cognitive drift + anomaly detection
-    security.py                   Password hashing (bcrypt) + JWT issuance/verification, role-based dependencies
+    security.py                   Password hashing (bcrypt) + JWT issuance/verification/revocation, role-based dependencies
+    otp.py                         Email-OTP generation + verification (caregiver login's 2nd factor)
     alerts.py                     Alert persistence (+ TODO hook for push/email/SMS dispatch)
 
   services/                   Glue between API routes and core/ algorithms + DB
@@ -36,7 +38,7 @@ app/
     analytics_service.py          Runs drift + anomaly checks after each sync batch
 
   api/routes/
-    auth.py                       /auth/caregiver/register, /auth/caregiver/login, /auth/me, /auth/patient/pair/start, /auth/patient/pair/complete
+    auth.py                       Mounted at /api/auth — /register, /login, /request-otp, /verify-otp, /logout, /me, /patient/pair/start, /patient/pair/complete
     sync.py                        POST /sync/batch  — the edge app's batched upload endpoint
     difficulty.py                  GET /difficulty/next/{game_type}  — Pillar 1
     voice.py                       POST /voice/classify  — Pillar 2 (debug/direct-test route)
@@ -78,10 +80,35 @@ requirements.txt
 - **Alerts** feedback arrow → `core/alerts.py` + `analytics_service.py`,
   surfaced through `api/routes/analytics.py` to the Caregiver Portal.
 - **Authentication** (unified role-based, self-hosted) →
-  `core/security.py` + `models/user.py`. Diverges from the Firebase/Auth0
-  suggestion in `ARCHITECTURE.md` by design — credentials (bcrypt password
-  hashes) are stored directly in the `users` collection instead of an
-  external identity provider.
+  `core/security.py`, `core/otp.py` + `models/user.py`, `models/auth.py`.
+  Diverges from the Firebase/Auth0 suggestion in `ARCHITECTURE.md` by
+  design — credentials (bcrypt password hashes) are stored directly in the
+  `users` collection instead of an external identity provider.
+
+## Caregiver auth flow
+
+Routes are mounted at `/api/auth` to match a provided frontend client
+(`authService.js`). Caregiver login is **two-factor** — password, then an
+email OTP — because that client only ever persists a token after
+`verifyOtp()`, never after `login()`:
+
+1. `POST /api/auth/register` — creates the account (bcrypt-hashed password). No token yet.
+2. `POST /api/auth/login` — validates the password and sends a 6-digit OTP to the caregiver's email (stubbed to a log line — wire up a real provider before production). Still no token.
+3. `POST /api/auth/request-otp` — resends the code ("Didn't get it?"). Always returns a generic message so it can't be used to enumerate registered emails.
+4. `POST /api/auth/verify-otp` — checks the code (max attempts + expiry enforced) and, only here, issues the session: `{ "token": "<jwt>", "caregiver": {...} }`.
+5. `POST /api/auth/logout` — records the token's `jti` in a `revoked_tokens` collection so it stops being accepted immediately, even before it naturally expires.
+
+Patient auth is unchanged: a caregiver starts a pairing at
+`/api/auth/patient/pair/start`, the tablet redeems it at
+`/api/auth/patient/pair/complete` and is issued its own long-lived device
+token — no password, no OTP.
+
+**Known trade-off:** `/request-otp` only takes an email (no password), so
+it can be called to (re)send a code without proving password knowledge
+first. That's intentional for the resend UX, but means the real
+authentication guarantee rests entirely on OTP secrecy + rate limiting
+(currently just a max-attempts counter per code). Add per-email/per-IP
+rate limiting on `/login` and `/request-otp` before production.
 
 ## Setup
 
@@ -112,7 +139,8 @@ structure at the application layer).
 | Performance score S, threshold grid scaling | Real, matches the formula in ARCHITECTURE.md |
 | Linear regression drift + anomaly detection (Pillar 3) | Real (numpy), thresholds are tunable via `config.py` |
 | NLU intent/entity extraction (Pillar 2) | Keyword-matching placeholder — swap `core/nlu.py` for a trained/cloud classifier; the STT/VAD/TTS pipeline itself runs on-device per the architecture, this module only handles the transcript the edge app sends up |
-| Password hashing + JWT auth (Pillar-adjacent, self-hosted) | Real — bcrypt hashing, JWT issuance/verification, no external provider. Rotate `JWT_SECRET_KEY` and put it behind a secrets manager before production |
+| Password hashing + JWT auth (self-hosted) | Real — bcrypt hashing, JWT issuance/verification, no external provider. Rotate `JWT_SECRET_KEY` and put it behind a secrets manager before production |
+| Email-OTP 2FA + logout revocation | Real logic (generation, hashing, expiry, attempt limits, JWT blacklist) — OTP delivery itself is a stubbed `print()` in `api/routes/auth.py`, swap for a real email provider |
 | Alert dispatch (push/email/SMS) | Persisted to Mongo; dispatch is a `# TODO` in `core/alerts.py` |
 | Drift/anomaly recompute cadence | Runs synchronously after every sync batch — fine at pilot scale; move to a scheduled worker (Celery beat / APScheduler) once patient volume grows |
 
@@ -131,7 +159,8 @@ pytest tests/
 Covers the bandit's explore/exploit behavior, the performance-score formula,
 threshold-based difficulty adaptation, drift detection on synthetic
 declining vs. stable score series, anomaly detection, NLU entity
-extraction, and the auth layer's password hashing + JWT issuance/
-verification — all without needing a database or network connection.
-(`get_current_user`'s DB lookup itself is the one piece that needs a live
-Mongo instance to exercise end-to-end.)
+extraction, password hashing + JWT issuance (including per-token `jti`s),
+and OTP generation/hashing/verification — all without needing a database or
+network connection. (`get_current_user`'s DB lookup, and the `/auth/*`
+route handlers themselves, are the pieces that need a live Mongo instance
+to exercise end-to-end.)
