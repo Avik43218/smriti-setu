@@ -1,5 +1,12 @@
 import { apiClient } from './api';
 
+export const register = async (name, email, password) => {
+  return await apiClient('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password }),
+  });
+};
+
 export const requestOtp = async (email) => {
   return await apiClient('/api/auth/request-otp', {
     method: 'POST',

@@ -71,14 +71,12 @@ export const Register = () => {
 
     setIsSubmitting(true);
     try {
-      // 1. Create caregiver account via authService
+      // 1. Forge the caregiver account in the database 🚀
       await register(name.trim(), email.trim(), password);
 
-      // 2. Hydrate AuthContext immediately
-      await verifyOtp(email.trim(), '000000');
-
-      // 3. Navigate straight to dashboard
-      navigate('/dashboard', { replace: true });
+      // 2. Kick them over to the login page to do the real 2FA flow! 🛡️
+      navigate('/login', { replace: true });
+      
     } catch (err) {
       setSubmitError(err?.message || 'Registration failed. Please check your information and try again.');
     } finally {

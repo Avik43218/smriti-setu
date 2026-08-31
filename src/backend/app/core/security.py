@@ -2,9 +2,11 @@
 
 Credentials never leave MongoDB: caregiver passwords are bcrypt-hashed and
 stored on the `users` document (see models/user.py); there is no external
-identity provider. Auth state is carried by a signed JWT — short-lived for
-caregivers (interactive login), long-lived for patient devices (paired once,
-then stays signed in).
+identity provider. Session state is a signed JWT — issued to a caregiver
+only after they confirm an email OTP (see api/routes/auth.py), long-lived
+for patient devices (paired once, then stays signed in). Logging out
+records the token's `jti` in `revoked_tokens` so it's rejected immediately,
+even though it hasn't technically expired yet.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -15,9 +17,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
 from app.config import settings
+from app.models.auth import RevokedToken
 from app.models.user import RoleEnum, User
 
-_bearer = HTTPBearer()
+bearer_scheme = HTTPBearer()
 
 
 # ---- Password hashing (caregivers only) ------------------------------------
@@ -34,7 +37,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def _create_token(user_id: uuid.UUID, role: RoleEnum, expires_delta: timedelta) -> str:
     expire = datetime.now(timezone.utc) + expires_delta
-    payload = {"sub": str(user_id), "role": role.value, "exp": expire}
+    payload = {"sub": str(user_id), "role": role.value, "jti": uuid.uuid4().hex, "exp": expire}
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -50,9 +53,27 @@ def create_patient_device_token(user_id: uuid.UUID) -> str:
     )
 
 
+# ---- Logout / revocation ------------------------------------------------------
+
+async def revoke_current_token(token: str) -> None:
+    """Best-effort: an already-malformed or expired token has nothing to
+    revoke, so this never raises — logout should always succeed from the
+    client's point of view."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        return
+
+    jti, exp = payload.get("jti"), payload.get("exp")
+    if not jti or not exp or await RevokedToken.find_one(RevokedToken.jti == jti):
+        return
+
+    await RevokedToken(jti=jti, expires_at=datetime.fromtimestamp(exp, tz=timezone.utc)).insert()
+
+
 # ---- Request-time verification ------------------------------------------------
 
-async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> User:
+async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> User:
     try:
         payload = jwt.decode(
             creds.credentials, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
@@ -60,6 +81,9 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer
         user_id = uuid.UUID(payload["sub"])
     except (JWTError, KeyError, ValueError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    if payload.get("jti") and await RevokedToken.find_one(RevokedToken.jti == payload["jti"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
 
     user = await User.get(user_id)
     if not user:

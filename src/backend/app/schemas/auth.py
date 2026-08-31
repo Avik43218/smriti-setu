@@ -15,6 +15,16 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class CaregiverOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    email: EmailStr
+    region_language: str
+
+    class Config:
+        from_attributes = True
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -28,14 +38,35 @@ class CaregiverRegisterRequest(BaseModel):
     region_language: str = "bn"
 
 
-class CaregiverLoginRequest(BaseModel):
+class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
 
-class CaregiverAuthOut(BaseModel):
-    user: UserOut
-    token: TokenOut
+class OtpRequestRequest(BaseModel):
+    email: EmailStr
+
+
+class OtpVerifyRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(min_length=4, max_length=8)
+
+
+class OtpRequestResponse(BaseModel):
+    message: str
+    email: EmailStr
+
+
+class OtpVerifyResponse(BaseModel):
+    """Matches authService.js's `verifyOtp()`, which reads `data.token` and
+    comments that the response is `{ token, caregiver }`."""
+
+    token: str
+    caregiver: CaregiverOut
+
+
+class LogoutResponse(BaseModel):
+    success: bool = True
 
 
 class PatientPairStartOut(BaseModel):

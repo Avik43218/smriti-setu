@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     CAREGIVER_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
     PATIENT_TOKEN_EXPIRE_DAYS: int = 365  # a paired tablet stays signed in long-term
+
+    # Caregiver login's email-OTP second factor
+    OTP_LENGTH: int = 6
+    OTP_EXPIRE_MINUTES: int = 10
+    OTP_MAX_ATTEMPTS: int = 5
 
     # Pillar 3 thresholds
     ALERT_ACCURACY_DROP_THRESHOLD: float = 0.25
