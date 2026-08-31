@@ -43,6 +43,7 @@ export const logout = async () => {
 };
 
 export default {
+  register,
   requestOtp,
   verifyOtp,
   login,

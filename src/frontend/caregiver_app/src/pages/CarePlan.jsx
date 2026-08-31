@@ -1,7 +1,10 @@
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { CalendarCheck, Clock } from 'lucide-react';
 
 export const CarePlan = () => {
+  const { id } = useParams();
+
   return (
     <div className="space-y-6">
       <div className="bg-surface dark:bg-ink-soft/20 border border-border dark:border-ink-soft/40 rounded-card p-6 sm:p-8 shadow-sm transition-colors">
@@ -12,7 +15,7 @@ export const CarePlan = () => {
               <span>Coming Soon</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-ink dark:text-cream tracking-tight">
-              Care Plan & Customization
+              Care Plan & Customization {id ? `• Patient ${id}` : ''}
             </h1>
             <p className="text-sm text-ink-soft dark:text-cream/70 mt-1.5 max-w-xl leading-relaxed">
               Custom reminder schedules, medication alerts, and emergency contact registries synchronized with the Smriti Setu patient tablet will be configurable here.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { TopControls } from '../components/TopControls';
 import {
@@ -263,6 +263,19 @@ export const Login = () => {
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Link to Register */}
+              <div className="text-center pt-3 mt-1 border-t border-border/60 dark:border-ink-soft/30">
+                <p className="text-xs text-ink-soft dark:text-cream/70">
+                  Don't have an account?{' '}
+                  <Link
+                    to="/register"
+                    className="text-terracotta hover:text-terracotta-dark font-semibold transition-colors focus:outline-none focus:underline"
+                  >
+                    Register
+                  </Link>
+                </p>
               </div>
             </form>
           )}

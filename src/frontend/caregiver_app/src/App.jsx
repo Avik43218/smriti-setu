@@ -4,11 +4,13 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { DashboardLayout } from './layouts/DashboardLayout';
+import { PatientLayout } from './layouts/PatientLayout';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { Analytics } from './pages/Analytics';
 import { CarePlan } from './pages/CarePlan';
-import { PatientDetail } from './pages/PatientDetail';
+import { PatientDetails } from './pages/PatientDetails';
 
 export const App = () => {
   return (
@@ -16,10 +18,11 @@ export const App = () => {
       <AuthProvider>
         <ThemeProvider>
           <Routes>
-            {/* Public Authentication Route */}
+            {/* Public Authentication Routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-            {/* Protected Routes nested in DashboardLayout Shell */}
+            {/* Global Dashboard View (No Dock Navbar, TopControls Only) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -28,12 +31,24 @@ export const App = () => {
               }
             >
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/care-plan" element={<CarePlan />} />
-              <Route path="/patients/:id" element={<PatientDetail />} />
             </Route>
 
-            {/* Default Redirects */}
+            {/* Patient-Scoped Views (Dock Navbar + TopControls + All Patients Back Link) */}
+            <Route
+              path="/patients/:id"
+              element={
+                <ProtectedRoute>
+                  <PatientLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="details" replace />} />
+              <Route path="details" element={<PatientDetails />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="care-plan" element={<CarePlan />} />
+            </Route>
+
+            {/* Default Fallback Redirects */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
