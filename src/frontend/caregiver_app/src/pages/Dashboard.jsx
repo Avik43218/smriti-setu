@@ -329,3 +329,146 @@ export const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+
+
+
+
+
+
+// import React from 'react';
+// import { useAuth } from '../context/AuthContext';
+// import { LogOut, User, Users, Heart } from 'lucide-react';
+// import { Link } from 'react-router-dom';
+
+// export const Dashboard = () => {
+//   const { caregiver, logout } = useAuth();
+
+//   return (
+//     <div className="min-h-screen bg-cream font-sans p-6 sm:p-8">
+//       <div className="max-w-5xl mx-auto space-y-6">
+//         {/* Top bar */}
+//         <header className="bg-surface border border-border rounded-card p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+//           <div>
+//             <span className="text-xs font-semibold uppercase tracking-wider text-terracotta">
+//               Caregiver Portal
+//             </span>
+//             <h1 className="text-2xl font-bold text-ink tracking-tight mt-0.5">
+//               Welcome back, {caregiver?.name || 'Caregiver'}
+//             </h1>
+//             <p className="text-sm text-ink-soft mt-1">
+//               Logged in as {caregiver?.email}
+//             </p>
+//           </div>
+
+//           <button
+//             onClick={logout}
+//             className="inline-flex items-center gap-2 px-4 py-2.5 bg-cream hover:bg-surface border border-border rounded-lg text-sm font-medium text-ink transition-colors focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+//           >
+//             <LogOut className="w-4 h-4 text-ink-soft" />
+//             <span>Sign Out</span>
+//           </button>
+//         </header>
+
+//         {/* Multi-patient switcher section */}
+//         <section className="bg-surface border border-border rounded-card p-6 shadow-sm">
+//           <div className="flex items-center gap-2 mb-4">
+//             <Users className="w-5 h-5 text-terracotta" />
+//             <h2 className="text-lg font-bold text-ink">
+//               Managed Patients
+//             </h2>
+//           </div>
+//           <p className="text-sm text-ink-soft mb-6">
+//             Select a patient profile to view detailed history, activity logs, and customization options.
+//           </p>
+
+//           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+//             <div className="p-4 bg-cream hover:bg-surface border border-border rounded-card transition-all space-y-3">
+//               <div className="flex items-center gap-3">
+//                 <div className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-terracotta shrink-0">
+//                   <User className="w-5 h-5" />
+//                 </div>
+//                 <div>
+//                   <h3 className="text-sm font-semibold text-ink">
+//                     Amina Begum
+//                   </h3>
+//                   <p className="text-xs text-ink-soft">
+//                     ID: p1 • Last check-in 10m ago
+//                   </p>
+//                 </div>
+//               </div>
+
+//               <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+//                 <Link
+//                   to="/patients/p1"
+//                   className="flex-1 py-2 px-3 bg-surface hover:bg-cream border border-border rounded-lg text-xs font-semibold text-ink text-center transition-colors min-h-[44px] flex items-center justify-center"
+//                 >
+//                   View Profile
+//                 </Link>
+//                 <Link
+//                   to="/patients/p1/care-plan"
+//                   className="flex-1 py-2 px-3 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-xs font-semibold text-center transition-colors min-h-[44px] flex items-center justify-center"
+//                 >
+//                   Care Plan & Reminders
+//                 </Link>
+//               </div>
+//             </div>
+
+//             <div className="p-4 bg-cream hover:bg-surface border border-border rounded-card transition-all space-y-3">
+//               <div className="flex items-center gap-3">
+//                 <div className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-terracotta shrink-0">
+//                   <User className="w-5 h-5" />
+//                 </div>
+//                 <div>
+//                   <h3 className="text-sm font-semibold text-ink">
+//                     Rohan Sharma
+//                   </h3>
+//                   <p className="text-xs text-ink-soft">
+//                     ID: p2 • Last check-in 1h ago
+//                   </p>
+//                 </div>
+//               </div>
+
+//               <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+//                 <Link
+//                   to="/patients/p2"
+//                   className="flex-1 py-2 px-3 bg-surface hover:bg-cream border border-border rounded-lg text-xs font-semibold text-ink text-center transition-colors min-h-[44px] flex items-center justify-center"
+//                 >
+//                   View Profile
+//                 </Link>
+//                 <Link
+//                   to="/patients/p2/care-plan"
+//                   className="flex-1 py-2 px-3 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-xs font-semibold text-center transition-colors min-h-[44px] flex items-center justify-center"
+//                 >
+//                   Care Plan & Reminders
+//                 </Link>
+//               </div>
+//             </div>
+//           </div>
+//         </section>
+
+//         {/* Global Quick Access Card */}
+//         <section className="bg-surface border border-border rounded-card p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+//           <div>
+//             <h3 className="text-base font-bold text-ink flex items-center gap-2">
+//               <Heart className="w-4 h-4 text-terracotta fill-terracotta/20" />
+//               <span>Care Plan & Customization Portal</span>
+//             </h3>
+//             <p className="text-xs text-ink-soft mt-0.5">
+//               Personalize memory gallery photo cards, daily routines, and family memories.
+//             </p>
+//           </div>
+//           <Link
+//             to="/care-plan"
+//             className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-xs font-semibold transition-colors min-h-[44px] flex items-center justify-center shrink-0"
+//           >
+//             Open Care Plan
+//           </Link>
+//         </section>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Dashboard;
