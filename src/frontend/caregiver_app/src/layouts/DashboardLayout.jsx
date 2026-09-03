@@ -9,7 +9,7 @@ export const DashboardLayout = () => {
       {/* Persistent Top-Right Controls: Profile Chip + Language, Theme, Notifications, Settings */}
       <TopControls showSettings={true} showProfile={true} />
 
-      {/* Main Content Area: Expanded to 7xl to reduce excess side whitespace on wide screens */}
+      {/* Main Content Area */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-12 sm:pb-16">
         <Outlet />
       </main>

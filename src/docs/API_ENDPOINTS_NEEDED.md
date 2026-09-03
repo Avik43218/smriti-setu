@@ -140,3 +140,106 @@ As stub functions are added to `src/services/`, they must be documented here.
   - `401 Unauthorized`: Missing or invalid session token.
   - `404 Not Found`: Patient not found or unauthorized access.
 
+---
+
+## 3. Care Plan & Customization — Memory Gallery
+
+### `GET /api/patients/:patientId/family-members`
+- **Calling Service / Page:** `src/services/carePlanService.js` (`CarePlan.jsx`)
+- **Purpose:** Retrieve all family member photo memory cards for a specific patient.
+- **Headers:** `Authorization: Bearer <token>`
+- **Response Shape (200 OK):**
+  ```json
+  [
+    {
+      "id": "fam_1",
+      "patientId": "p1",
+      "name": "Zara Begum",
+      "relation": "Granddaughter",
+      "photoUrl": "data:image/svg+xml;..."
+    }
+  ]
+  ```
+
+### `POST /api/patients/:patientId/family-members`
+- **Calling Service / Page:** `src/services/carePlanService.js` (`CarePlan.jsx`)
+- **Purpose:** Create a new family member memory card for a patient.
+- **Headers:** `Authorization: Bearer <token>`
+- **Request Body:**
+  ```json
+  {
+    "name": "Zara Begum",
+    "relation": "Granddaughter",
+    "photoUrl": "data:image/jpeg;base64,..."
+  }
+  ```
+- **Response Shape (201 Created):**
+  ```json
+  {
+    "id": "fam_101",
+    "patientId": "p1",
+    "name": "Zara Begum",
+    "relation": "Granddaughter",
+    "photoUrl": "data:image/jpeg;base64,..."
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: Missing required fields (`name`, `relation`, `photoUrl`).
+
+---
+
+## 4. Care Plan — Health & Wellness Reminders
+
+### `GET /api/patients/:patientId/reminders`
+- **Calling Service / Page:** `src/services/reminderService.js` (`CarePlan.jsx`)
+- **Purpose:** Retrieve all Health & Wellness reminders (Medication, Hydration, Meals, Custom) for a patient.
+- **Headers:** `Authorization: Bearer <token>`
+- **Response Shape (200 OK):**
+  ```json
+  {
+    "medication": [
+      { "id": "med_1", "label": "Morning Dose", "time": "8:00 AM" }
+    ],
+    "hydration": {
+      "id": "hyd_1",
+      "label": "Hourly Water Intake",
+      "schedule": "8 AM–8 PM",
+      "status": "Active"
+    },
+    "meals": [
+      { "id": "meal_1", "label": "Breakfast", "time": "8:30 AM" }
+    ],
+    "custom": [
+      { "id": "cust_1", "label": "Evening Walk & Stretch", "time": "5:00 PM", "frequency": "Daily" }
+    ]
+  }
+  ```
+
+### `PUT /api/patients/:patientId/reminders/:category`
+- **Calling Service / Page:** `src/services/reminderService.js` (`CarePlan.jsx`)
+- **Purpose:** Update existing labels/times for a category (`medication`, `hydration`, `meals`).
+- **Headers:** `Authorization: Bearer <token>`
+- **Request Body:** Updated array or object for that category.
+- **Response Shape (200 OK):** Returns updated category payload.
+
+### `POST /api/patients/:patientId/reminders/custom`
+- **Calling Service / Page:** `src/services/reminderService.js` (`CarePlan.jsx`)
+- **Purpose:** Add a one-off custom reminder for a patient.
+- **Headers:** `Authorization: Bearer <token>`
+- **Request Body:**
+  ```json
+  {
+    "label": "Evening Walk & Stretch",
+    "time": "5:00 PM",
+    "frequency": "Daily"
+  }
+  ```
+- **Response Shape (201 Created):**
+  ```json
+  {
+    "id": "cust_101",
+    "label": "Evening Walk & Stretch",
+    "time": "5:00 PM",
+    "frequency": "Daily"
+  }
+  ```
