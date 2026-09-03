@@ -1,17 +1,21 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { TopControls } from '../components/TopControls';
+import { Footer } from '../components/Footer';
 
 export const DashboardLayout = () => {
   return (
     <div className="min-h-screen bg-cream dark:bg-ink text-ink dark:text-cream font-sans transition-colors duration-200 flex flex-col relative">
-      {/* Persistent Top-Right Controls: Theme Toggle + Settings */}
-      <TopControls showSettings={true} />
+      {/* Persistent Top-Right Controls: Profile Chip + Language, Theme, Notifications, Settings */}
+      <TopControls showSettings={true} showProfile={true} />
 
-      {/* Main Content Area: Clears TopControls with natural breathing room */}
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-12 sm:pb-16">
+      {/* Main Content Area: Expanded to 7xl to reduce excess side whitespace on wide screens */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-12 sm:pb-16">
         <Outlet />
       </main>
+
+      {/* Site Identity Footer */}
+      <Footer />
     </div>
   );
 };

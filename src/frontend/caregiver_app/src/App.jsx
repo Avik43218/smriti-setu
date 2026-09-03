@@ -8,6 +8,7 @@ import { PatientLayout } from './layouts/PatientLayout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
+import { RegisterPatient } from './pages/RegisterPatient';
 import { Analytics } from './pages/Analytics';
 import { CarePlan } from './pages/CarePlan';
 import { PatientDetails } from './pages/PatientDetails';
@@ -31,6 +32,7 @@ export const App = () => {
               }
             >
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/patients/new" element={<RegisterPatient />} />
             </Route>
 
             {/* Patient-Scoped Views (Dock Navbar + TopControls + All Patients Back Link) */}
