@@ -23,10 +23,26 @@ export const PatientCard = ({ patient }) => {
 
   const statusConfig = getCareStatusConfig(patient.careStatus);
 
+  // Top stripe + dot color keyed to careStatus tier (single source of mapping).
+  // normal → sage, reminder_missed → gold, alert → status-urgent
+  const stripeClass =
+    patient.careStatus === 'alert'
+      ? 'border-t-status-urgent'
+      : patient.careStatus === 'reminder_missed'
+        ? 'border-t-gold'
+        : 'border-t-sage';
+
+  const dotClass =
+    patient.careStatus === 'alert'
+      ? 'bg-status-urgent'
+      : patient.careStatus === 'reminder_missed'
+        ? 'bg-gold'
+        : 'bg-sage';
+
   return (
     <Link
       to={`/patients/${patient.id}/details`}
-      className="group block bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-5 sm:p-6 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-terracotta/40"
+      className={`group block bg-surface dark:bg-ink-soft/20 border-x border-b border-t-[3px] border-x-border/80 border-b-border/80 dark:border-x-ink-soft/40 dark:border-b-ink-soft/40 ${stripeClass} rounded-card p-5 sm:p-6 shadow-card hover:scale-[1.02] transition-all duration-200 ease-out outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink dark:focus-visible:outline-cream`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
@@ -57,7 +73,7 @@ export const PatientCard = ({ patient }) => {
               }}
             >
               <span
-                className={`block w-3.5 h-3.5 rounded-full ${statusConfig.dotColor} ring-2 ring-surface dark:ring-ink transition-transform hover:scale-110`}
+                className={`block w-3.5 h-3.5 rounded-full ${dotClass} ring-2 ring-surface dark:ring-ink transition-transform hover:scale-110`}
                 aria-label={`Status: ${statusConfig.label}`}
               />
 
