@@ -3,11 +3,14 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { register } from '../services/authService';
 import { TopControls } from '../components/TopControls';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
 import {
   HeartHandshake,
   UserPlus,
   AlertCircle,
   ShieldCheck,
+  Check,
+  X,
 } from 'lucide-react';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -183,7 +186,26 @@ export const Register = () => {
                 }`}
                 disabled={isSubmitting}
               />
-              {errors.email && (
+
+              {/* Real-time Email Validity Indicator (live, while typing) */}
+              {email.length > 0 && (
+                <div className="mt-1.5 flex items-center gap-1 text-xs">
+                  {EMAIL_REGEX.test(email.trim()) ? (
+                    <span className="text-sage flex items-center gap-1 font-medium">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Valid email format</span>
+                    </span>
+                  ) : (
+                    <span className="text-terracotta flex items-center gap-1 font-medium">
+                      <X className="w-3.5 h-3.5" />
+                      <span>Invalid email format</span>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Submit-time fallback: shown only when field is empty on submit */}
+              {errors.email && email.length === 0 && (
                 <p className="text-xs text-terracotta font-medium mt-1.5 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
                   {errors.email}
@@ -218,6 +240,9 @@ export const Register = () => {
                 }`}
                 disabled={isSubmitting}
               />
+              {/* Real-time Password Strength Indicator */}
+              <PasswordStrengthIndicator password={password} />
+
               {errors.password && (
                 <p className="text-xs text-terracotta font-medium mt-1.5 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
@@ -253,7 +278,26 @@ export const Register = () => {
                 }`}
                 disabled={isSubmitting}
               />
-              {errors.confirmPassword && (
+
+              {/* Real-time Match Indicator (live, while typing) */}
+              {confirmPassword.length > 0 && (
+                <div className="mt-1.5 flex items-center gap-1 text-xs">
+                  {password === confirmPassword ? (
+                    <span className="text-sage flex items-center gap-1 font-medium">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Passwords match</span>
+                    </span>
+                  ) : (
+                    <span className="text-terracotta flex items-center gap-1 font-medium">
+                      <X className="w-3.5 h-3.5" />
+                      <span>Passwords do not match</span>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Submit-time fallback: shown only when confirm field is empty on submit */}
+              {errors.confirmPassword && confirmPassword.length === 0 && (
                 <p className="text-xs text-terracotta font-medium mt-1.5 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
                   {errors.confirmPassword}
