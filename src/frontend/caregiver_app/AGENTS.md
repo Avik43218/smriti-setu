@@ -10,7 +10,7 @@ rules specific to this app's structure and pages.
 - Never use arbitrary values (`bg-[#123456]`) or inline `style={{ color: ... }}` for brand colors/typography
 - `alert` (`#C1272D`) is reserved for the patient app's SOS state — do not reuse it for
   destructive/delete actions here; use a distinct red variant for those or a plain
-  neutral + icon instead
+  neutral + icon insteadGraphs + history for the selected patient
 - This app is NOT under the patient app's dementia-accessibility constraints (no 18px
   floor, no 88dp touch targets required) — use standard modern dashboard density and
   the normal Tailwind type scale

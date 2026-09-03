@@ -23,8 +23,8 @@ export const PatientLayout = () => {
       {/* Persistent Top-Right Controls: Theme Toggle + Settings */}
       <TopControls showSettings={true} />
 
-      {/* Main Content Area: Generous top spacing clearing the floating dock, tooltips, and magnification */}
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 pt-28 sm:pt-36 pb-12 sm:pb-16">
+      {/* Main Content Area: Generous spacing clearing floating top controls and navbar dock */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-16 sm:pb-20">
         <Outlet />
       </main>
     </div>
