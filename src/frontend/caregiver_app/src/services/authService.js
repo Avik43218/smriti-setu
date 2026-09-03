@@ -1,4 +1,4 @@
-import { apiClient } from './api';
+import { apiClient } from './apiClient';
 
 export const register = async (name, email, password) => {
   return await apiClient('/api/auth/register', {
@@ -39,7 +39,6 @@ export const login = async (email, password) => {
 // Kills the session on the backend
 export const logout = async () => {
   try {
-    
     await apiClient('/api/auth/logout', { method: 'POST' });
   } catch (error) {
     console.warn("Backend logout failed!");

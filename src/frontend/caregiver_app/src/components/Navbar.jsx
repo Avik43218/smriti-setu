@@ -36,7 +36,7 @@ const useFinePointer = () => {
 export const Navbar = () => {
   const location = useLocation();
   const params = useParams();
-  const patientId = params.id || location.pathname.split('/patients/')[1]?.split('/')[0] || '';
+  const patientId = params.id || location.pathname.split('/patients/')[1]?.split('/')[0] || 'p101';
 
   // Mouse/trackpad detected — enable magnification and hover tooltips
   const isFinePointer = useFinePointer();

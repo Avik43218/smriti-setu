@@ -23,7 +23,7 @@ export const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Global Dashboard View (No Dock Navbar, TopControls Only) */}
+            {/* Main Caregiver Dashboard Routes wrapped in DashboardLayout */}
             <Route
               element={
                 <ProtectedRoute>
@@ -33,24 +33,25 @@ export const App = () => {
             >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/patients/new" element={<RegisterPatient />} />
+              <Route path="/care-plan" element={<CarePlan />} />
+              <Route path="/customization" element={<CarePlan />} />
             </Route>
 
-            {/* Patient-Scoped Views (Dock Navbar + TopControls + All Patients Back Link) */}
+            {/* Patient Context Routes wrapped in PatientLayout */}
             <Route
-              path="/patients/:id"
               element={
                 <ProtectedRoute>
                   <PatientLayout />
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="details" replace />} />
-              <Route path="details" element={<PatientDetails />} />
-              <Route path="analytics" element={<Analytics />} />
-              <Route path="care-plan" element={<CarePlan />} />
+              <Route path="/patients/:id" element={<Navigate to="details" replace />} />
+              <Route path="/patients/:id/details" element={<PatientDetails />} />
+              <Route path="/patients/:id/care-plan" element={<CarePlan />} />
+              <Route path="/patients/:id/analytics" element={<Analytics />} />
             </Route>
 
-            {/* Default Fallback Redirects */}
+            {/* Default redirect to /dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
