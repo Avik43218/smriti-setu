@@ -29,23 +29,6 @@ export const apiClient = async (endpoint, options = {}) => {
     return await response.json();
   } catch (error) {
     console.warn("API Call Notice (Mock Fallback):", error.message);
-    
-    // Fallbacks for auth endpoints when real backend is not running
-    if (endpoint === '/api/auth/login' || endpoint === '/api/auth/request-otp') {
-      return { success: true, requiresOtp: true };
-    }
-    if (endpoint === '/api/auth/verify-otp') {
-      const email = JSON.parse(options.body || '{}').email || 'caregiver@example.com';
-      const name = email.split('@')[0];
-      return {
-        token: 'mock_jwt_token_' + Date.now(),
-        caregiver: { id: 'cg_101', name: name.charAt(0).toUpperCase() + name.slice(1), email },
-      };
-    }
-    if (endpoint === '/api/auth/logout') {
-      return { success: true };
-    }
-
     throw error;
   }
 };
