@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Save,
   Heart,
-  Upload,
   Camera,
   X,
   AlertCircle,
@@ -19,24 +17,25 @@ import {
   Pencil,
   Clock,
   Calendar,
-  Sun,
-  Moon,
-  Users,
-  TrendingUp,
   Bell,
   BellOff,
-  HelpCircle,
-  Settings,
   HeartHandshake,
-  UserCheck,
+  Upload,
+  ChevronDown,
+  Check,
+  Trash2,
+  Volume2,
+  Music,
 } from 'lucide-react';
 import { fetchFamilyMembers, addFamilyMember, saveCarePlan } from '../services/carePlanService';
 import { fetchReminders, updateCategoryReminders, addCustomReminder } from '../services/reminderService';
+import { TimePicker } from '../components/TimePicker';
+import { StyledSelect } from '../components/StyledSelect';
+import { SoundClipCard } from '../components/SoundClipCard';
 
 export const CarePlan = () => {
   const { id: routePatientId } = useParams();
   const patientId = routePatientId || 'p1';
-  const { theme, toggleTheme } = useTheme();
   const { caregiver } = useAuth();
 
   // Patient display details mapping
@@ -74,6 +73,7 @@ export const CarePlan = () => {
   const [customRelation, setCustomRelation] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoPreview, setPhotoPreview] = useState('');
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const [memoryFormError, setMemoryFormError] = useState('');
   const [isSubmittingMemory, setIsSubmittingMemory] = useState(false);
 
@@ -82,6 +82,7 @@ export const CarePlan = () => {
   const [categoryDraft, setCategoryDraft] = useState(null);
   const [categoryFormError, setCategoryFormError] = useState('');
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+  const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
 
   // Modal 3: Add Custom Reminder
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -89,6 +90,22 @@ export const CarePlan = () => {
   const [customTime, setCustomTime] = useState('5:00 PM');
   const [customFrequency, setCustomFrequency] = useState('Daily');
   const [customFormError, setCustomFormError] = useState('');
+
+  // Modal 4: Add Familiar Sound
+  const [familiarSounds, setFamiliarSounds] = useState([
+    {
+      id: 'sound_demo_1',
+      caption: "Sarah's Morning Greeting",
+      audioUrl: 'https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg',
+    },
+  ]);
+  const [isSoundModalOpen, setIsSoundModalOpen] = useState(false);
+  const [soundCaption, setSoundCaption] = useState('');
+  const [soundAudioUrl, setSoundAudioUrl] = useState('');
+  const [soundFileName, setSoundFileName] = useState('');
+  const [isDraggingAudio, setIsDraggingAudio] = useState(false);
+  const [soundFormError, setSoundFormError] = useState('');
+  const [isSubmittingSound, setIsSubmittingSound] = useState(false);
   // Toggle Alarm Active status for a default or custom reminder
   const toggleAlarmStatus = (category, itemId = null) => {
     setReminders((prev) => {
@@ -161,9 +178,8 @@ export const CarePlan = () => {
     };
   }, [patientId]);
 
-  // Handle Photo selection for Memory Gallery
-  const handlePhotoChange = (e) => {
-    const file = e.target.files?.[0];
+  // Helper to validate and process memory image file
+  const processImageFile = (file) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -184,6 +200,33 @@ export const CarePlan = () => {
       setPhotoPreview(result);
     };
     reader.readAsDataURL(file);
+  };
+
+  // Handle Photo selection for Memory Gallery (click-to-browse)
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    processImageFile(file);
+  };
+
+  // Drag-and-drop handlers for photo selection area
+  const handlePhotoDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingPhoto) setIsDraggingPhoto(true);
+  };
+
+  const handlePhotoDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(false);
+  };
+
+  const handlePhotoDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(false);
+    const file = e.dataTransfer?.files?.[0];
+    processImageFile(file);
   };
 
   // Submit Family Member Memory
@@ -222,6 +265,7 @@ export const CarePlan = () => {
       setCustomRelation('');
       setPhotoUrl('');
       setPhotoPreview('');
+      setIsDraggingPhoto(false);
       setIsMemoryModalOpen(false);
     } catch (err) {
       setMemoryFormError(err.message || 'Failed to add family member.');
@@ -230,10 +274,119 @@ export const CarePlan = () => {
     }
   };
 
+  // Process Audio File for Familiar Sounds
+  const processAudioFile = (file) => {
+    if (!file) return;
+    setSoundFormError('');
+
+    const validTypes = [
+      'audio/mp3',
+      'audio/mpeg',
+      'audio/wav',
+      'audio/x-wav',
+      'audio/wave',
+      'audio/ogg',
+      'audio/m4a',
+      'audio/x-m4a',
+      'audio/aac',
+      'audio/webm',
+    ];
+    const isAudio = file.type.startsWith('audio/') || validTypes.includes(file.type.toLowerCase());
+    if (!isAudio) {
+      setSoundFormError('Please select a valid audio file (MP3, WAV, MPEG, M4A, OGG).');
+      return;
+    }
+
+    // 10MB maximum limit
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setSoundFormError('Audio file is too large. Maximum allowed size is 10MB.');
+      return;
+    }
+
+    setSoundFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSoundAudioUrl(reader.result);
+    };
+    reader.onerror = () => {
+      setSoundFormError('Failed to read the audio file. Please try another file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Drag-and-drop & browse handlers for audio
+  const handleAudioChange = (e) => {
+    const file = e.target.files?.[0];
+    processAudioFile(file);
+  };
+
+  const handleAudioDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingAudio) setIsDraggingAudio(true);
+  };
+
+  const handleAudioDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingAudio(false);
+  };
+
+  const handleAudioDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingAudio(false);
+    const file = e.dataTransfer?.files?.[0];
+    processAudioFile(file);
+  };
+
+  // Submit Familiar Sound
+  const handleAddSoundSubmit = (e) => {
+    e.preventDefault();
+    setSoundFormError('');
+
+    if (!soundAudioUrl) {
+      setSoundFormError('Please upload an audio file.');
+      return;
+    }
+    if (!soundCaption.trim()) {
+      setSoundFormError('Please enter a caption describing what this sound is.');
+      return;
+    }
+
+    setIsSubmittingSound(true);
+    try {
+      const newSound = {
+        id: `sound_${Date.now()}`,
+        caption: soundCaption.trim(),
+        audioUrl: soundAudioUrl,
+        fileName: soundFileName,
+      };
+
+      setFamiliarSounds((prev) => [...prev, newSound]);
+      setIsSoundModalOpen(false);
+      setSoundCaption('');
+      setSoundAudioUrl('');
+      setSoundFileName('');
+      setSoundFormError('');
+    } catch (err) {
+      setSoundFormError('Failed to save sound clip.');
+    } finally {
+      setIsSubmittingSound(false);
+    }
+  };
+
+  // Delete Familiar Sound
+  const handleDeleteSound = (soundId) => {
+    setFamiliarSounds((prev) => prev.filter((s) => s.id !== soundId));
+  };
+
   // Open Edit Modal for a Category (Medication, Hydration, Meals)
   const openCategoryEdit = (category) => {
     setEditingCategory(category);
     setCategoryFormError('');
+    setIsTimePickerOpen(false);
     if (category === 'medication') {
       setCategoryDraft(JSON.parse(JSON.stringify(reminders.medication)));
     } else if (category === 'hydration') {
@@ -248,6 +401,18 @@ export const CarePlan = () => {
     e.preventDefault();
     setCategoryFormError('');
 
+    if (editingCategory === 'medication' || editingCategory === 'meals') {
+      if (!categoryDraft || categoryDraft.length === 0) {
+        setCategoryFormError(`Please add at least one ${editingCategory === 'medication' ? 'medication dose' : 'meal'}.`);
+        return;
+      }
+      const hasEmptyLabel = categoryDraft.some((item) => !item.label || !item.label.trim());
+      if (hasEmptyLabel) {
+        setCategoryFormError('Please provide a label for every entry before saving.');
+        return;
+      }
+    }
+
     setIsSubmittingCategory(true);
     try {
       await updateCategoryReminders(patientId, editingCategory, categoryDraft);
@@ -257,6 +422,7 @@ export const CarePlan = () => {
       }));
       setEditingCategory(null);
       setCategoryDraft(null);
+      setIsTimePickerOpen(false);
     } catch (err) {
       setCategoryFormError(err.message || 'Failed to update reminder settings.');
     } finally {
@@ -321,169 +487,85 @@ export const CarePlan = () => {
     }
   };
 
+  /**
+   * Parse a hydration schedule string like "8 AM – 8 PM" or "8:00 AM – 8:00 PM"
+   * into [startTimeStr, endTimeStr].
+   */
+  const parseHydrationSchedule = (schedule) => {
+    const parts = String(schedule ?? '').split('\u2013').map((s) => s.trim());
+    if (parts.length === 2 && parts[0] && parts[1]) return parts;
+    // Fallback for em-dash variants or plain hyphen
+    const altParts = String(schedule ?? '').split(/[-—]/).map((s) => s.trim());
+    if (altParts.length === 2 && altParts[0] && altParts[1]) return altParts;
+    return ['8:00 AM', '8:00 PM'];
+  };
+
   return (
     <div className="space-y-6">
-      {/* MAIN LAYOUT GRID (LEFT SIDEBAR + MAIN CONTENT AREA) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-
-
-        {/* LEFT SIDEBAR NAVIGATION */}
-        <aside className="lg:col-span-3 bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-5 shadow-sm space-y-6">
-          {/* Active Patient Badge Box */}
-          <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/70 dark:border-ink-soft/40 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/50 border border-border flex items-center justify-center text-terracotta font-bold shrink-0">
-              <UserCheck className="w-5 h-5" />
+      {/* Care Plan Header Card */}
+      <section
+        aria-label="Care Plan Overview"
+        className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 sm:p-8 shadow-sm transition-colors"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="space-y-1 min-w-0">
+            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-cream dark:bg-ink-soft/40 text-terracotta text-xs font-semibold uppercase tracking-wider mb-1">
+              Personalized Protocol
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/60">
-                Patient
-              </p>
-              <h3 className="text-sm font-bold text-ink dark:text-cream truncate">
-                {patientName}
-              </h3>
-              <p className="text-[11px] text-ink-soft dark:text-cream/70 truncate">
-                Memory Care Unit B
-              </p>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-ink dark:text-cream tracking-tight truncate">
+              Care Plan & Customization
+            </h1>
+            <p className="text-xs sm:text-sm text-ink-soft dark:text-cream/70 max-w-xl leading-relaxed">
+              Personalize {patientName}&apos;s environment and daily schedule to support memory retention and ensure well-being.
+            </p>
           </div>
 
-          {/* Sidebar Navigation Items */}
-          <nav className="space-y-1.5 font-medium text-sm">
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors"
-            >
-              <Users className="w-4 h-4 text-ink-soft dark:text-cream/70" />
-              <span>Patients</span>
-            </Link>
-
-            <Link
-              to={`/patients/${patientId}/care-plan`}
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg bg-sage/20 dark:bg-terracotta/20 text-terracotta dark:text-terracotta font-bold border border-terracotta/20 transition-all"
-            >
-              <Calendar className="w-4 h-4 text-terracotta" />
-              <span>Care Plans</span>
-            </Link>
-
-            <Link
-              to={`/patients/${patientId}/analytics`}
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors"
-            >
-              <TrendingUp className="w-4 h-4 text-ink-soft dark:text-cream/70" />
-              <span>Analytics</span>
-            </Link>
-          </nav>
-
-          {/* Action Button: + Add Reminder */}
+          {/* Action Button: Save Changes */}
           <button
-            type="button"
-            onClick={() => setIsCustomModalOpen(true)}
-            className="w-full py-2.5 px-4 bg-terracotta hover:bg-terracotta-dark text-surface font-medium text-xs rounded-lg transition-all flex items-center justify-center gap-2 shadow-xs min-h-[44px]"
+            onClick={handleSaveChanges}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-surface dark:bg-ink-soft/40 hover:bg-cream dark:hover:bg-ink-soft/60 border border-border dark:border-ink-soft/40 rounded-lg text-xs sm:text-sm font-semibold text-ink dark:text-cream transition-colors focus:outline-none focus:ring-1 focus:ring-terracotta disabled:opacity-60 disabled:cursor-not-allowed shadow-xs min-h-[44px] shrink-0 self-start sm:self-auto"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Reminder</span>
+            {isSaving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-ink dark:border-cream border-t-transparent rounded-full animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 text-terracotta" />
+                <span>Save Changes</span>
+              </>
+            )}
           </button>
+        </div>
+      </section>
 
-          {/* Sidebar Footer Links: SETTINGS & SUPPORT */}
-          <div className="pt-4 border-t border-border/60 dark:border-ink-soft/30 space-y-2 text-xs font-semibold text-ink-soft dark:text-cream/60">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 text-left transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              <span>SETTINGS (Theme: {theme.toUpperCase()})</span>
-            </button>
-            <button
-              type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 text-left transition-colors"
-            >
-              <HelpCircle className="w-4 h-4" />
-              <span>SUPPORT</span>
-            </button>
-          </div>
-        </aside>
+      {saveNotification && (
+        <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-xs font-medium text-ink dark:text-cream flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-sage" />
+          <span>{saveNotification}</span>
+        </div>
+      )}
 
-        {/* RIGHT MAIN CONTENT AREA */}
-        <main className="lg:col-span-9 space-y-6">
+      {/* TWO-COLUMN GRID: MEMORY GALLERY & HEALTH & WELLNESS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-          {/* Care Plan Header */}
-          <section className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors">
-            <div className="space-y-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-ink dark:text-cream tracking-tight">
-                Care Plan & Customization
-              </h1>
-              <p className="text-xs sm:text-sm text-ink-soft dark:text-cream/70 max-w-xl leading-relaxed">
-                Personalize {patientName}&apos;s environment and daily schedule to support memory retention and ensure well-being.
+        {/* LEFT COLUMN — Memory Gallery Card */}
+        <section className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm space-y-6 transition-colors">
+          <div className="flex items-center gap-4 border-b border-border/60 dark:border-ink-soft/30 pb-5">
+            <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
+              <Heart className="w-4 h-4 fill-terracotta/20" />
+            </div>
+            <div className="space-y-0.5">
+              <h2 className="text-lg font-bold text-ink dark:text-cream">
+                Memory Gallery
+              </h2>
+              <p className="text-xs text-ink-soft dark:text-cream/70">
+                Upload photos of loved ones to help with memory exercises.
               </p>
             </div>
-
-            <div className="flex items-center gap-3">
-              {/* Theme Toggle option next to Save Changes */}
-              <button
-                type="button"
-                onClick={toggleTheme}
-                title="Toggle Light/Dark Theme"
-                className="p-2.5 rounded-lg bg-cream dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 text-ink dark:text-cream hover:bg-surface transition-all shadow-xs"
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4 text-gold" /> : <Moon className="w-4 h-4 text-terracotta" />}
-              </button>
-
-              <button
-                onClick={handleSaveChanges}
-                disabled={isSaving}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface dark:bg-ink-soft/40 hover:bg-cream dark:hover:bg-ink-soft/60 border border-border dark:border-ink-soft/40 rounded-lg text-xs font-semibold text-ink dark:text-cream transition-colors focus:outline-none focus:ring-1 focus:ring-terracotta disabled:opacity-60 disabled:cursor-not-allowed shadow-xs min-h-[44px]"
-              >
-                {isSaving ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-ink dark:border-cream border-t-transparent rounded-full animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 text-terracotta" />
-                    <span>Save Changes</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </section>
-
-          {saveNotification && (
-            <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-xs font-medium text-ink dark:text-cream flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-sage" />
-              <span>{saveNotification}</span>
-            </div>
-          )}
-
-          {/* TWO-COLUMN GRID: MEMORY GALLERY & HEALTH & WELLNESS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-
-            {/* LEFT COLUMN — Memory Gallery Card */}
-            <section className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm space-y-6 transition-colors">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/60 dark:border-ink-soft/30 pb-5">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta">
-                      <Heart className="w-4 h-4 fill-terracotta/20" />
-                    </div>
-                    <h2 className="text-lg font-bold text-ink dark:text-cream">
-                      Memory Gallery
-                    </h2>
-                  </div>
-                  <p className="text-xs text-ink-soft dark:text-cream/70">
-                    Upload photos of loved ones to help with memory exercises.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setIsMemoryModalOpen(true)}
-                  className="inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-sage/20 dark:bg-terracotta/20 hover:bg-sage/30 text-terracotta rounded-lg text-xs font-semibold transition-colors shadow-xs shrink-0 min-h-[40px]"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload Photo</span>
-                </button>
-              </div>
+          </div>
 
               {memoryError && (
                 <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-center gap-2 text-xs text-ink dark:text-cream">
@@ -530,24 +612,81 @@ export const CarePlan = () => {
                     </div>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={() => setIsMemoryModalOpen(true)}
-                    className="border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 rounded-card p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[180px] focus:outline-none focus:ring-1 focus:ring-terracotta group"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 group-hover:border-terracotta flex items-center justify-center text-terracotta transition-colors mb-2">
-                      <Camera className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-semibold text-ink dark:text-cream group-hover:text-terracotta transition-colors">
-                      Add Another Memory
-                    </span>
-                    <span className="text-[11px] text-ink-soft dark:text-cream/60 mt-1">
-                      JPG, PNG up to 5MB
-                    </span>
-                  </button>
+              <button
+                type="button"
+                onClick={() => setIsMemoryModalOpen(true)}
+                className="border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 rounded-card p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[180px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta group"
+              >
+                <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 group-hover:border-terracotta flex items-center justify-center text-terracotta transition-colors mb-2">
+                  <Camera className="w-5 h-5" />
                 </div>
-              )}
-            </section>
+                <span className="text-xs font-semibold text-ink dark:text-cream group-hover:text-terracotta transition-colors">
+                  Add Another Memory
+                </span>
+                <span className="text-[11px] text-ink-soft dark:text-cream/60 mt-1">
+                  JPG, PNG up to 5MB
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Familiar Sounds Section */}
+          <div className="pt-5 border-t border-border/60 dark:border-ink-soft/30 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
+                  <Volume2 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-ink dark:text-cream truncate">
+                    Familiar Sounds & Voices
+                  </h3>
+                  <p className="text-xs text-ink-soft dark:text-cream/70 truncate">
+                    Voices and comforting sounds for {patientName}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsSoundModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cream/80 dark:bg-ink-soft/30 hover:bg-cream dark:hover:bg-ink-soft/50 border border-border/80 dark:border-ink-soft/40 rounded-lg text-xs font-semibold text-ink dark:text-cream transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5 text-terracotta" />
+                <span>Add Sound</span>
+              </button>
+            </div>
+
+            {familiarSounds.length === 0 ? (
+              <div className="p-5 bg-cream/30 dark:bg-ink-soft/10 border-2 border-dashed border-border/80 dark:border-ink-soft/40 rounded-card text-center space-y-2">
+                <div className="w-9 h-9 rounded-full bg-surface dark:bg-ink-soft/30 border border-border/70 dark:border-ink-soft/30 mx-auto flex items-center justify-center text-terracotta/80">
+                  <Music className="w-4 h-4" />
+                </div>
+                <p className="text-xs font-medium text-ink-soft dark:text-cream/70 max-w-sm mx-auto">
+                  Add familiar voices or songs to help with recognition and comfort.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsSoundModalOpen(true)}
+                  className="text-xs font-semibold text-terracotta hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Upload your first sound clip</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {familiarSounds.map((sound) => (
+                  <SoundClipCard
+                    key={sound.id}
+                    sound={sound}
+                    onDelete={handleDeleteSound}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
 
             {/* RIGHT COLUMN — Health & Wellness Card */}
             <section className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm space-y-6 transition-colors">
@@ -596,7 +735,7 @@ export const CarePlan = () => {
                         type="button"
                         onClick={() => openCategoryEdit('medication')}
                         aria-label="Edit Medication schedule"
-                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-surface transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -662,7 +801,7 @@ export const CarePlan = () => {
                         type="button"
                         onClick={() => openCategoryEdit('hydration')}
                         aria-label="Edit Hydration schedule"
-                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-surface transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -717,7 +856,7 @@ export const CarePlan = () => {
                         type="button"
                         onClick={() => openCategoryEdit('meals')}
                         aria-label="Edit Meals schedule"
-                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-surface transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -827,7 +966,7 @@ export const CarePlan = () => {
                   <button
                     type="button"
                     onClick={() => setIsCustomModalOpen(true)}
-                    className="w-full border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 rounded-card p-3 flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-cream transition-colors cursor-pointer min-h-[44px]"
+                    className="w-full border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 rounded-card p-3 flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-cream transition-colors cursor-pointer min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                   >
                     <Plus className="w-4 h-4 text-terracotta" />
                     <span>Add Custom Reminder</span>
@@ -838,13 +977,10 @@ export const CarePlan = () => {
             </section>
 
           </div>
-
-        </main>
-      </div>
       {/* MODAL 1: ADD FAMILY MEMBER */}
       {isMemoryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-ink/40 dark:bg-ink/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-ink-soft/90 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 bg-ink/50 dark:bg-ink/70 flex items-center justify-center p-4">
+          <div className="bg-surface dark:bg-ink border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-3">
               <div className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-terracotta" />
@@ -859,10 +995,11 @@ export const CarePlan = () => {
                   setMemoryFormError('');
                   setPhotoUrl('');
                   setPhotoPreview('');
+                  setIsDraggingPhoto(false);
                   setMemberName('');
                   setCustomRelation('');
                 }}
-                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -893,17 +1030,28 @@ export const CarePlan = () => {
                       onClick={() => {
                         setPhotoUrl('');
                         setPhotoPreview('');
+                        setIsDraggingPhoto(false);
                       }}
-                      className="absolute top-2 right-2 bg-surface/90 dark:bg-ink/90 hover:bg-surface border border-border p-1.5 rounded-full text-ink dark:text-cream transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      className="absolute top-2 right-2 bg-surface/90 dark:bg-ink/90 hover:bg-surface border border-border p-1.5 rounded-full text-ink dark:text-cream transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/40 dark:bg-ink-soft/20 hover:bg-cream rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors min-h-[140px]">
-                    <ImageIcon className="w-8 h-8 text-terracotta mb-2" />
+                  <label
+                    onDragOver={handlePhotoDragOver}
+                    onDragEnter={handlePhotoDragOver}
+                    onDragLeave={handlePhotoDragLeave}
+                    onDrop={handlePhotoDrop}
+                    className={`border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[140px] outline-none focus-within:ring-1 focus-within:ring-terracotta ${
+                      isDraggingPhoto
+                        ? 'border-terracotta bg-terracotta/10 dark:bg-terracotta/15 scale-[1.01] shadow-xs'
+                        : 'border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/40 dark:bg-ink-soft/20 hover:bg-cream'
+                    }`}
+                  >
+                    <ImageIcon className={`w-8 h-8 text-terracotta mb-2 transition-transform duration-150 ${isDraggingPhoto ? 'scale-110' : ''}`} />
                     <span className="text-xs font-semibold text-ink dark:text-cream">
-                      Click or drag photo to upload
+                      {isDraggingPhoto ? 'Drop photo here to upload' : 'Click or drag photo to upload'}
                     </span>
                     <span className="text-[11px] text-ink-soft dark:text-cream/60 mt-1">
                       JPG, PNG up to 5MB (Required)
@@ -931,7 +1079,7 @@ export const CarePlan = () => {
                   value={memberName}
                   onChange={(e) => setMemberName(e.target.value)}
                   placeholder="e.g. Sarah Miller"
-                  className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors min-h-[44px]"
+                  className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
                 />
               </div>
 
@@ -942,21 +1090,21 @@ export const CarePlan = () => {
                 >
                   Relation <span className="text-terracotta">*</span>
                 </label>
-                <select
+                <StyledSelect
                   id="memberRelation"
                   value={memberRelation}
-                  onChange={(e) => setMemberRelation(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors min-h-[44px]"
-                >
-                  <option value="Granddaughter">Granddaughter</option>
-                  <option value="Son">Son</option>
-                  <option value="Daughter">Daughter</option>
-                  <option value="Spouse">Spouse</option>
-                  <option value="Grandson">Grandson</option>
-                  <option value="Caregiver">Caregiver</option>
-                  <option value="Friend">Friend</option>
-                  <option value="Other">Other</option>
-                </select>
+                  onChange={(val) => setMemberRelation(val)}
+                  options={[
+                    'Granddaughter',
+                    'Son',
+                    'Daughter',
+                    'Spouse',
+                    'Grandson',
+                    'Caregiver',
+                    'Friend',
+                    'Other',
+                  ]}
+                />
 
                 {/* Render custom relation text field if 'Other' is selected */}
                 {memberRelation === 'Other' && (
@@ -973,7 +1121,7 @@ export const CarePlan = () => {
                       value={customRelation}
                       onChange={(e) => setCustomRelation(e.target.value)}
                       placeholder="e.g. Nephew, Neighbor, Cousin"
-                      className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors min-h-[44px]"
+                      className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
                     />
                   </div>
                 )}
@@ -987,11 +1135,12 @@ export const CarePlan = () => {
                     setMemoryFormError('');
                     setPhotoUrl('');
                     setPhotoPreview('');
+                    setIsDraggingPhoto(false);
                     setMemberName('');
                     setCustomRelation('');
                   }}
                   disabled={isSubmittingMemory}
-                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px]"
+                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                 >
                   Cancel
                 </button>
@@ -999,7 +1148,7 @@ export const CarePlan = () => {
                 <button
                   type="submit"
                   disabled={isSubmittingMemory}
-                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
+                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
                 >
                   {isSubmittingMemory ? (
                     <>
@@ -1021,8 +1170,8 @@ export const CarePlan = () => {
 
       {/* MODAL 2: EDIT CATEGORY (Medication / Hydration / Meals) */}
       {editingCategory && categoryDraft && (
-        <div className="fixed inset-0 z-50 bg-ink/40 dark:bg-ink/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-ink-soft/90 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 bg-ink/50 dark:bg-ink/70 flex items-center justify-center p-4">
+          <div className="bg-surface dark:bg-ink border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-3">
               <div className="flex items-center gap-2">
                 <Pencil className="w-5 h-5 text-terracotta" />
@@ -1035,8 +1184,9 @@ export const CarePlan = () => {
                 onClick={() => {
                   setEditingCategory(null);
                   setCategoryDraft(null);
+                  setIsTimePickerOpen(false);
                 }}
-                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1049,47 +1199,95 @@ export const CarePlan = () => {
               </div>
             )}
 
+            {/* Scoped scrollbar styling matching TimePicker and StyledSelect */}
+            <style>{`
+              .modal-scrollbar::-webkit-scrollbar {
+                width: 3px;
+              }
+              .modal-scrollbar::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .modal-scrollbar::-webkit-scrollbar-thumb {
+                background: rgba(181, 86, 47, 0.35);
+                border-radius: 9999px;
+              }
+              .modal-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: rgba(181, 86, 47, 0.65);
+              }
+              .modal-scrollbar {
+                scrollbar-width: thin;
+                scrollbar-color: rgba(181, 86, 47, 0.35) transparent;
+              }
+            `}</style>
+
             <form onSubmit={handleCategorySave} className="space-y-4">
               {/* Editing Medication List */}
               {editingCategory === 'medication' && Array.isArray(categoryDraft) && (
                 <div className="space-y-3">
-                  {categoryDraft.map((item, idx) => (
-                    <div key={item.id || idx} className="p-3 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg space-y-2">
-                      <label className="block text-xs font-semibold text-ink-soft dark:text-cream/70">
-                        Dose Label #{idx + 1}
-                      </label>
-                      <input
-                        type="text"
-                        value={item.label}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCategoryDraft((prev) => {
-                            const updated = [...prev];
-                            updated[idx].label = val;
-                            return updated;
-                          });
-                        }}
-                        className="w-full px-3 py-2 bg-surface dark:bg-ink-soft/50 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
-                      />
+                  <div className={`space-y-3 max-h-[50vh] sm:max-h-[320px] ${isTimePickerOpen ? 'overflow-hidden' : 'overflow-y-auto'} modal-scrollbar pr-1 -mr-1`}>
+                    {categoryDraft.map((item, idx) => (
+                      <div key={item.id || idx} className="p-3 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-ink-soft dark:text-cream/70">
+                            Medication Dose #{idx + 1}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCategoryDraft((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            aria-label={`Remove medication dose ${idx + 1}`}
+                            className="p-1 text-ink-soft/70 hover:text-terracotta dark:text-cream/60 dark:hover:text-terracotta rounded-md hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={item.label}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCategoryDraft((prev) => {
+                              const updated = [...prev];
+                              updated[idx] = { ...updated[idx], label: val };
+                              return updated;
+                            });
+                          }}
+                          placeholder="e.g. Morning Dose, BP Medicine"
+                          className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
+                        />
 
-                      <label className="block text-xs font-semibold text-ink-soft dark:text-cream/70">
-                        Scheduled Time
-                      </label>
-                      <input
-                        type="text"
-                        value={item.time}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCategoryDraft((prev) => {
-                            const updated = [...prev];
-                            updated[idx].time = val;
-                            return updated;
-                          });
-                        }}
-                        className="w-full px-3 py-2 bg-surface dark:bg-ink-soft/50 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
-                      />
-                    </div>
-                  ))}
+                        <label className="block text-xs font-semibold text-ink-soft dark:text-cream/70">
+                          Scheduled Time
+                        </label>
+                        <TimePicker
+                          value={item.time}
+                          onOpenChange={setIsTimePickerOpen}
+                          onChange={(val) =>
+                            setCategoryDraft((prev) => {
+                              const updated = [...prev];
+                              updated[idx] = { ...updated[idx], time: val };
+                              return updated;
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryDraft((prev) => [
+                        ...prev,
+                        { id: `med_${Date.now()}`, label: '', time: '8:00 AM', active: true },
+                      ])
+                    }
+                    className="w-full py-2.5 px-3 border border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta/60 dark:hover:border-terracotta/60 rounded-lg bg-cream/40 dark:bg-ink-soft/20 hover:bg-cream/80 dark:hover:bg-ink-soft/30 text-xs font-semibold text-ink-soft dark:text-cream/80 hover:text-terracotta dark:hover:text-terracotta flex items-center justify-center gap-1.5 transition-colors min-h-[40px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                  >
+                    <Plus className="w-4 h-4 text-terracotta" />
+                    <span>Add Medication Dose</span>
+                  </button>
                 </div>
               )}
 
@@ -1104,7 +1302,7 @@ export const CarePlan = () => {
                       type="text"
                       value={categoryDraft.label}
                       onChange={(e) => setCategoryDraft((prev) => ({ ...prev, label: e.target.value }))}
-                      className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
+                      className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
                     />
                   </div>
 
@@ -1112,13 +1310,32 @@ export const CarePlan = () => {
                     <label className="block text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/70 mb-1.5">
                       Active Time Window
                     </label>
-                    <input
-                      type="text"
-                      value={categoryDraft.schedule}
-                      onChange={(e) => setCategoryDraft((prev) => ({ ...prev, schedule: e.target.value }))}
-                      placeholder="e.g. 8 AM – 8 PM"
-                      className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
-                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[11px] font-medium text-ink-soft dark:text-cream/60 mb-1">Start</p>
+                        <TimePicker
+                          value={parseHydrationSchedule(categoryDraft.schedule)[0]}
+                          onChange={(val) =>
+                            setCategoryDraft((prev) => ({
+                              ...prev,
+                              schedule: `${val} \u2013 ${parseHydrationSchedule(prev.schedule)[1]}`,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-medium text-ink-soft dark:text-cream/60 mb-1">End</p>
+                        <TimePicker
+                          value={parseHydrationSchedule(categoryDraft.schedule)[1]}
+                          onChange={(val) =>
+                            setCategoryDraft((prev) => ({
+                              ...prev,
+                              schedule: `${parseHydrationSchedule(prev.schedule)[0]} \u2013 ${val}`,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1126,29 +1343,70 @@ export const CarePlan = () => {
               {/* Editing Meals List */}
               {editingCategory === 'meals' && Array.isArray(categoryDraft) && (
                 <div className="space-y-3">
-                  {categoryDraft.map((item, idx) => (
-                    <div key={item.id || idx} className="p-3 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg space-y-2">
-                      <div className="flex items-center justify-between">
+                  <div className={`space-y-3 max-h-[50vh] sm:max-h-[320px] ${isTimePickerOpen ? 'overflow-hidden' : 'overflow-y-auto'} modal-scrollbar pr-1 -mr-1`}>
+                    {categoryDraft.map((item, idx) => (
+                      <div key={item.id || idx} className="p-3 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-ink-soft dark:text-cream/70">
+                            Meal #{idx + 1}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCategoryDraft((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            aria-label={`Remove meal ${idx + 1}`}
+                            className="p-1 text-ink-soft/70 hover:text-terracotta dark:text-cream/60 dark:hover:text-terracotta rounded-md hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={item.label}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCategoryDraft((prev) => {
+                              const updated = [...prev];
+                              updated[idx] = { ...updated[idx], label: val };
+                              return updated;
+                            });
+                          }}
+                          placeholder="e.g. Breakfast, Lunch, Snack, Dinner"
+                          className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
+                        />
+
                         <label className="block text-xs font-semibold text-ink-soft dark:text-cream/70">
-                          {item.label}
+                          Scheduled Time
                         </label>
+                        <TimePicker
+                          value={item.time}
+                          onOpenChange={setIsTimePickerOpen}
+                          onChange={(val) =>
+                            setCategoryDraft((prev) => {
+                              const updated = [...prev];
+                              updated[idx] = { ...updated[idx], time: val };
+                              return updated;
+                            })
+                          }
+                        />
                       </div>
-                      <input
-                        type="text"
-                        value={item.time}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCategoryDraft((prev) => {
-                            const updated = [...prev];
-                            updated[idx].time = val;
-                            return updated;
-                          });
-                        }}
-                        placeholder="e.g. 8:30 AM"
-                        className="w-full px-3 py-2 bg-surface dark:bg-ink-soft/50 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta min-h-[44px]"
-                      />
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryDraft((prev) => [
+                        ...prev,
+                        { id: `meal_${Date.now()}`, label: '', time: '12:00 PM', active: true },
+                      ])
+                    }
+                    className="w-full py-2.5 px-3 border border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta/60 dark:hover:border-terracotta/60 rounded-lg bg-cream/40 dark:bg-ink-soft/20 hover:bg-cream/80 dark:hover:bg-ink-soft/30 text-xs font-semibold text-ink-soft dark:text-cream/80 hover:text-terracotta dark:hover:text-terracotta flex items-center justify-center gap-1.5 transition-colors min-h-[40px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                  >
+                    <Plus className="w-4 h-4 text-terracotta" />
+                    <span>Add Meal</span>
+                  </button>
                 </div>
               )}
 
@@ -1158,9 +1416,10 @@ export const CarePlan = () => {
                   onClick={() => {
                     setEditingCategory(null);
                     setCategoryDraft(null);
+                    setIsTimePickerOpen(false);
                   }}
                   disabled={isSubmittingCategory}
-                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px]"
+                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                 >
                   Cancel
                 </button>
@@ -1168,7 +1427,7 @@ export const CarePlan = () => {
                 <button
                   type="submit"
                   disabled={isSubmittingCategory}
-                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
+                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
                 >
                   {isSubmittingCategory ? (
                     <>
@@ -1187,8 +1446,8 @@ export const CarePlan = () => {
 
       {/* MODAL 3: ADD CUSTOM REMINDER */}
       {isCustomModalOpen && (
-        <div className="fixed inset-0 z-50 bg-ink/40 dark:bg-ink/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-ink-soft/90 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 bg-ink/50 dark:bg-ink/70 flex items-center justify-center p-4">
+          <div className="bg-surface dark:bg-ink border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-3">
               <div className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-terracotta" />
@@ -1203,7 +1462,7 @@ export const CarePlan = () => {
                   setCustomFormError('');
                   setCustomLabel('');
                 }}
-                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1230,7 +1489,7 @@ export const CarePlan = () => {
                   value={customLabel}
                   onChange={(e) => setCustomLabel(e.target.value)}
                   placeholder="e.g. Evening Walk & Stretch"
-                  className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors min-h-[44px]"
+                  className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
                 />
               </div>
 
@@ -1241,13 +1500,10 @@ export const CarePlan = () => {
                 >
                   Time <span className="text-terracotta">*</span>
                 </label>
-                <input
+                <TimePicker
                   id="customTime"
-                  type="text"
                   value={customTime}
-                  onChange={(e) => setCustomTime(e.target.value)}
-                  placeholder="e.g. 5:00 PM"
-                  className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors min-h-[44px]"
+                  onChange={setCustomTime}
                 />
               </div>
 
@@ -1258,17 +1514,12 @@ export const CarePlan = () => {
                 >
                   Repeat Frequency
                 </label>
-                <select
+                <StyledSelect
                   id="customFrequency"
                   value={customFrequency}
-                  onChange={(e) => setCustomFrequency(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream focus:outline-none focus:ring-1 focus:ring-terracotta transition-colors min-h-[44px]"
-                >
-                  <option value="Daily">Daily</option>
-                  <option value="Weekly">Weekly</option>
-                  <option value="Monthly">Monthly</option>
-                  <option value="As Needed">As Needed</option>
-                </select>
+                  onChange={(val) => setCustomFrequency(val)}
+                  options={['Daily', 'Weekly', 'Monthly', 'As Needed']}
+                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/60 dark:border-ink-soft/30">
@@ -1280,7 +1531,7 @@ export const CarePlan = () => {
                     setCustomLabel('');
                   }}
                   disabled={isSubmittingCustom}
-                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px]"
+                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
                 >
                   Cancel
                 </button>
@@ -1288,7 +1539,7 @@ export const CarePlan = () => {
                 <button
                   type="submit"
                   disabled={isSubmittingCustom}
-                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
+                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
                 >
                   {isSubmittingCustom ? (
                     <>
@@ -1299,6 +1550,158 @@ export const CarePlan = () => {
                     <>
                       <Plus className="w-4 h-4" />
                       <span>Add Reminder</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ADD FAMILIAR SOUND */}
+      {isSoundModalOpen && (
+        <div className="fixed inset-0 z-50 bg-ink/50 dark:bg-ink/70 flex items-center justify-center p-4">
+          <div className="bg-surface dark:bg-ink border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-md max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-3">
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-terracotta" />
+                <h3 className="text-lg font-bold text-ink dark:text-cream">
+                  Add Familiar Sound
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSoundModalOpen(false);
+                  setSoundFormError('');
+                  setSoundAudioUrl('');
+                  setSoundFileName('');
+                  setSoundCaption('');
+                  setIsDraggingAudio(false);
+                }}
+                className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {soundFormError && (
+              <div className="p-3 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-center gap-2 text-xs font-medium text-terracotta">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{soundFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddSoundSubmit} className="space-y-4">
+              {/* Audio Upload Dropzone */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/70 mb-1.5">
+                  Audio File <span className="text-terracotta">*</span>
+                </label>
+
+                {soundAudioUrl ? (
+                  <div className="p-3.5 bg-cream/70 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Music className="w-4 h-4 text-terracotta shrink-0" />
+                        <span className="text-xs font-medium text-ink dark:text-cream truncate">
+                          {soundFileName || 'Selected Audio Clip'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSoundAudioUrl('');
+                          setSoundFileName('');
+                        }}
+                        className="text-[11px] font-semibold text-terracotta hover:underline shrink-0"
+                      >
+                        Change
+                      </button>
+                    </div>
+                    <audio controls src={soundAudioUrl} className="w-full h-8 outline-none" preload="metadata" />
+                  </div>
+                ) : (
+                  <label
+                    onDragOver={handleAudioDragOver}
+                    onDragEnter={handleAudioDragOver}
+                    onDragLeave={handleAudioDragLeave}
+                    onDrop={handleAudioDrop}
+                    className={`border-2 border-dashed rounded-card p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                      isDraggingAudio
+                        ? 'border-terracotta bg-terracotta/10 dark:bg-terracotta/20 scale-[0.99]'
+                        : 'border-border/80 dark:border-ink-soft/40 hover:border-terracotta/70 bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/60 dark:hover:bg-ink-soft/20'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 flex items-center justify-center text-terracotta mb-2">
+                      <Volume2 className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-semibold text-ink dark:text-cream">
+                      {isDraggingAudio ? 'Drop audio clip here to upload' : 'Click or drag audio file to upload'}
+                    </span>
+                    <span className="text-[11px] text-ink-soft dark:text-cream/60 mt-1">
+                      MP3, WAV, MPEG up to 10MB (Required)
+                    </span>
+                    <input
+                      type="file"
+                      accept="audio/mp3, audio/mpeg, audio/wav, audio/ogg, audio/m4a, audio/aac"
+                      onChange={handleAudioChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Caption field */}
+              <div>
+                <label
+                  htmlFor="soundCaption"
+                  className="block text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/70 mb-1.5"
+                >
+                  What&apos;s this sound? <span className="text-terracotta">*</span>
+                </label>
+                <input
+                  id="soundCaption"
+                  type="text"
+                  value={soundCaption}
+                  onChange={(e) => setSoundCaption(e.target.value)}
+                  placeholder="e.g. Grandmother's voice, Favorite morning lullaby"
+                  className="w-full px-3.5 py-2.5 bg-cream/80 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm text-ink dark:text-cream placeholder:text-ink-soft/60 dark:placeholder:text-cream/50 shadow-[inset_0_1px_2px_rgba(46,42,36,0.06)] dark:shadow-none outline-none focus:outline-none focus:border-terracotta focus:ring-1 focus:ring-terracotta transition-all min-h-[44px]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/60 dark:border-ink-soft/30">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSoundModalOpen(false);
+                    setSoundFormError('');
+                    setSoundAudioUrl('');
+                    setSoundFileName('');
+                    setSoundCaption('');
+                    setIsDraggingAudio(false);
+                  }}
+                  disabled={isSubmittingSound}
+                  className="px-4 py-2.5 bg-cream dark:bg-ink-soft/40 hover:bg-surface border border-border/80 dark:border-ink-soft/40 rounded-lg text-sm font-medium text-ink dark:text-cream transition-colors min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingSound}
+                  className="px-4 py-2.5 bg-terracotta hover:bg-terracotta-dark text-surface rounded-lg text-sm font-medium transition-colors flex items-center gap-2 outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terracotta/40 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm min-h-[44px]"
+                >
+                  {isSubmittingSound ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-surface border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Add Sound Clip</span>
                     </>
                   )}
                 </button>
