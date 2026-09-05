@@ -1,8 +1,10 @@
+import { getTodayComplianceSummary } from './reminderService';
+
 /**
  * Patient Service
  * 
  * Provides patient roster retrieval and profile inspection for the caregiver portal.
- * Currently uses mock implementation with realistic network delay.
+ * Derives patient careStatus dynamically from live reminder compliance data.
  */
 
 export const CARE_STATUS = {
@@ -66,7 +68,6 @@ const MOCK_PATIENTS = [
     diagnosis: 'Mild Cognitive Impairment (MCI)',
     healthIssue: 'Mild Cognitive Impairment (MCI) • Early-stage memory recall decline • Hypertension',
     avatarUrl: null,
-    careStatus: 'normal',
     lastCheckIn: 'Today, 10:30 AM',
     notes: 'Morning memory recall exercise completed with 92% accuracy.',
     emergencyContact: {
@@ -90,7 +91,6 @@ const MOCK_PATIENTS = [
     diagnosis: "Early Stage Alzheimer's",
     healthIssue: "Early Stage Alzheimer's Disease • Mild spatial disorientation",
     avatarUrl: null,
-    careStatus: 'reminder_missed',
     lastCheckIn: 'Yesterday, 6:15 PM',
     notes: 'Evening reminder acknowledged. Next routine scheduled at 8:00 AM.',
     emergencyContact: {
@@ -108,32 +108,30 @@ const MOCK_PATIENTS = [
 ];
 
 /**
- * Fetches all patients assigned to the active caregiver.
+ * Fetches all patients assigned to the active caregiver with derived live careStatus.
  * 
  * // BACKEND-TODO: see docs/API_ENDPOINTS_NEEDED.md (GET /api/caregiver/patients)
  * 
  * @returns {Promise<Array>}
  */
 export const fetchPatients = async () => {
-  /*
-   * === REAL API CALL REPLACEMENT ===
-   * When the backend is ready, replace the mock block below with:
-   * 
-   * const response = await apiClient.get('/api/caregiver/patients');
-   * return response.data;
-   */
-
-  // --- MOCK IMPLEMENTATION START ---
   return new Promise((resolve) => {
     setTimeout(() => {
-      resolve([...MOCK_PATIENTS]);
-    }, 400); // 400ms simulated network latency
+      const enrichedPatients = MOCK_PATIENTS.map((patient) => {
+        const compliance = getTodayComplianceSummary(patient.id);
+        return {
+          ...patient,
+          careStatus: compliance.careStatus,
+          complianceSummary: compliance,
+        };
+      });
+      resolve(enrichedPatients);
+    }, 350); // Simulated latency
   });
-  // --- MOCK IMPLEMENTATION END ---
 };
 
 /**
- * Fetches details for a single patient by ID.
+ * Fetches details for a single patient by ID with derived live careStatus.
  * 
  * // BACKEND-TODO: see docs/API_ENDPOINTS_NEEDED.md (GET /api/caregiver/patients/:id)
  * 
@@ -141,20 +139,17 @@ export const fetchPatients = async () => {
  * @returns {Promise<Object>}
  */
 export const getPatientById = async (id) => {
-  /*
-   * === REAL API CALL REPLACEMENT ===
-   * When the backend is ready, replace the mock block below with:
-   * 
-   * const response = await apiClient.get(`/api/caregiver/patients/${id}`);
-   * return response.data;
-   */
-
-  // --- MOCK IMPLEMENTATION START ---
   return new Promise((resolve) => {
     setTimeout(() => {
       const patient = MOCK_PATIENTS.find((p) => p.id === id);
+      const compliance = getTodayComplianceSummary(id);
+
       if (patient) {
-        resolve({ ...patient });
+        resolve({
+          ...patient,
+          careStatus: compliance.careStatus,
+          complianceSummary: compliance,
+        });
       } else {
         // Realistic fallback record if arbitrary ID entered in route
         resolve({
@@ -166,7 +161,8 @@ export const getPatientById = async (id) => {
           diagnosis: 'Cognitive Care Monitoring',
           healthIssue: 'Cognitive monitoring routine active',
           avatarUrl: null,
-          careStatus: 'normal',
+          careStatus: compliance.careStatus,
+          complianceSummary: compliance,
           lastCheckIn: 'Today, 11:00 AM',
           notes: 'Standard cognitive support routine.',
           emergencyContact: {
@@ -182,9 +178,8 @@ export const getPatientById = async (id) => {
           },
         });
       }
-    }, 300);
+    }, 250);
   });
-  // --- MOCK IMPLEMENTATION END ---
 };
 
 export default {
@@ -193,3 +188,4 @@ export default {
   getCareStatusConfig,
   CARE_STATUS,
 };
+
