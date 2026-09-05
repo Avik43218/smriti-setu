@@ -243,3 +243,44 @@ As stub functions are added to `src/services/`, they must be documented here.
     "frequency": "Daily"
   }
   ```
+
+---
+
+## 5. Cognitive Game Sessions & Analytics
+
+### `GET /api/patients/:patientId/game-sessions`
+- **Calling Service / Page:** `src/services/gameSessionService.js` (`Analytics.jsx`)
+- **Purpose:** Fetch historical game session records and cognitive metrics for a specific patient.
+- **Headers:** `Authorization: Bearer <token>`
+- **Query Parameters (Optional):**
+  - `domain`: `memory` | `language` | `attention` (filter by cognitive domain)
+  - `limit`: integer (e.g. 50)
+  - `from_date`: ISO string
+- **Response Shape (200 OK):**
+  ```json
+  [
+    {
+      "session_id": "sess_mem_p101_1",
+      "patient_profile_id": "p101",
+      "game_type": "pair_matching",
+      "domain": "memory",
+      "session_date": "2026-08-08T10:15:00.000Z",
+      "session_duration": 135,
+      "status": "completed",
+      "difficulty_level": 1,
+      "score_normalized": 0.72,
+      "correct_match_rate": 0.76,
+      "total_flips": 18,
+      "time_to_first_correct_match": 4.0,
+      "repeat_error_rate": 0.09,
+      "completion_time": 135,
+      "pairs_count": 4,
+      "used_face_name_variant": true,
+      "raw_trials": []
+    }
+  ]
+  ```
+- **Error Responses:**
+  - `401 Unauthorized`: Missing or invalid session token.
+  - `404 Not Found`: Patient record not found.
+

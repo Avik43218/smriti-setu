@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Volume2, VolumeX, Trash2, Play, Pause, Music } from 'lucide-react';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 /**
  * Format time in seconds to mm:ss format
@@ -29,6 +30,7 @@ export const SoundClipCard = ({ sound, onDelete }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(false);
 
   // Reset playback when audio source changes
   useEffect(() => {
@@ -121,7 +123,7 @@ export const SoundClipCard = ({ sound, onDelete }) => {
         {onDelete && (
           <button
             type="button"
-            onClick={() => onDelete(sound.id)}
+            onClick={() => setPendingDelete(true)}
             aria-label={`Delete sound clip: ${sound.caption}`}
             className="p-1.5 text-ink-soft/70 hover:text-terracotta dark:text-cream/60 dark:hover:text-terracotta rounded-md hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta shrink-0"
           >
@@ -192,6 +194,18 @@ export const SoundClipCard = ({ sound, onDelete }) => {
           )}
         </button>
       </div>
+
+      {/* Confirm delete dialog */}
+      {pendingDelete && (
+        <ConfirmDeleteModal
+          message={`Delete "${sound.caption}"? The audio clip will be permanently removed.`}
+          onConfirm={() => {
+            setPendingDelete(false);
+            onDelete(sound.id);
+          }}
+          onCancel={() => setPendingDelete(false)}
+        />
+      )}
     </div>
   );
 };

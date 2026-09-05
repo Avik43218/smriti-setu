@@ -28,10 +28,11 @@ import {
   Music,
 } from 'lucide-react';
 import { fetchFamilyMembers, addFamilyMember, saveCarePlan } from '../services/carePlanService';
-import { fetchReminders, updateCategoryReminders, addCustomReminder } from '../services/reminderService';
+import { fetchReminders, updateCategoryReminders, addCustomReminder, getPatientComplianceDetails } from '../services/reminderService';
 import { TimePicker } from '../components/TimePicker';
 import { StyledSelect } from '../components/StyledSelect';
 import { SoundClipCard } from '../components/SoundClipCard';
+import { ConfirmDeleteModal } from '../components/ConfirmDeleteModal';
 
 export const CarePlan = () => {
   const { id: routePatientId } = useParams();
@@ -62,6 +63,10 @@ export const CarePlan = () => {
   const [isLoadingReminders, setIsLoadingReminders] = useState(true);
   const [reminderError, setReminderError] = useState('');
 
+  // Compliance Tracking State
+  const [compliance, setCompliance] = useState(null);
+  const [isLoadingCompliance, setIsLoadingCompliance] = useState(true);
+
   // Overall Save status
   const [isSaving, setIsSaving] = useState(false);
   const [saveNotification, setSaveNotification] = useState('');
@@ -90,6 +95,7 @@ export const CarePlan = () => {
   const [customTime, setCustomTime] = useState('5:00 PM');
   const [customFrequency, setCustomFrequency] = useState('Daily');
   const [customFormError, setCustomFormError] = useState('');
+  const [isSubmittingCustom, setIsSubmittingCustom] = useState(false);
 
   // Modal 4: Add Familiar Sound
   const [familiarSounds, setFamiliarSounds] = useState([
@@ -106,6 +112,29 @@ export const CarePlan = () => {
   const [isDraggingAudio, setIsDraggingAudio] = useState(false);
   const [soundFormError, setSoundFormError] = useState('');
   const [isSubmittingSound, setIsSubmittingSound] = useState(false);
+
+  // Modal 5: Confirm Delete Dialog State
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    isOpen: false,
+    message: '',
+    onConfirm: null,
+  });
+
+  const requestDelete = (message, onConfirm) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      message,
+      onConfirm,
+    });
+  };
+
+  const closeDeleteConfirmation = () => {
+    setDeleteConfirmation({
+      isOpen: false,
+      message: '',
+      onConfirm: null,
+    });
+  };
   // Toggle Alarm Active status for a default or custom reminder
   const toggleAlarmStatus = (category, itemId = null) => {
     setReminders((prev) => {
@@ -149,15 +178,19 @@ export const CarePlan = () => {
       setMemoryError('');
       setReminderError('');
 
+      setIsLoadingCompliance(true);
+
       try {
-        const [membersData, remindersData] = await Promise.all([
+        const [membersData, remindersData, complianceData] = await Promise.all([
           fetchFamilyMembers(patientId),
           fetchReminders(patientId),
+          getPatientComplianceDetails(patientId),
         ]);
 
         if (isMounted) {
           setFamilyMembers(membersData);
           setReminders(remindersData);
+          setCompliance(complianceData);
         }
       } catch (err) {
         if (isMounted) {
@@ -168,6 +201,7 @@ export const CarePlan = () => {
         if (isMounted) {
           setIsLoadingMemories(false);
           setIsLoadingReminders(false);
+          setIsLoadingCompliance(false);
         }
       }
     };
@@ -272,6 +306,19 @@ export const CarePlan = () => {
     } finally {
       setIsSubmittingMemory(false);
     }
+  };
+
+  // Delete Family Member Memory
+  const handleDeleteMemory = (memberId) => {
+    setFamilyMembers((prev) => prev.filter((m) => m.id !== memberId));
+  };
+
+  // Delete Custom Reminder
+  const handleDeleteCustomReminder = (reminderId) => {
+    setReminders((prev) => ({
+      ...prev,
+      custom: prev.custom.filter((c) => c.id !== reminderId),
+    }));
   };
 
   // Process Audio File for Familiar Sounds
@@ -500,8 +547,50 @@ export const CarePlan = () => {
     return ['8:00 AM', '8:00 PM'];
   };
 
+  /**
+   * Derives human-readable missed reminder names for a given past day compliance record.
+   */
+  const getMissedReminderNames = (day) => {
+    if (!day || day.missed === 0) return '';
+    if (Array.isArray(day.missedLabels) && day.missedLabels.length > 0) {
+      return day.missedLabels.join(', ');
+    }
+    const sampleNamesByOffset = {
+      1: ['Lunch'],
+      2: ['Evening Calcium'],
+      3: ['Hydration Window', 'Breakfast'],
+      4: ['Morning BP Medicine'],
+      5: ['Dinner'],
+    };
+    const mapped = sampleNamesByOffset[day.dayOffset] || [
+      reminders?.medication?.[0]?.label || 'Medication Dose',
+    ];
+    return mapped.slice(0, day.missed).join(', ');
+  };
+
   return (
     <div className="space-y-6">
+      {/* Scoped CarePlan column scrollbar styling matching TimePicker and StyledSelect */}
+      <style>{`
+        .careplan-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .careplan-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .careplan-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(181, 86, 47, 0.3);
+          border-radius: 9999px;
+        }
+        .careplan-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(181, 86, 47, 0.6);
+        }
+        .careplan-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(181, 86, 47, 0.3) transparent;
+        }
+      `}</style>
+
       {/* Care Plan Header Card */}
       <section
         aria-label="Care Plan Overview"
@@ -548,94 +637,647 @@ export const CarePlan = () => {
         </div>
       )}
 
-      {/* TWO-COLUMN GRID: MEMORY GALLERY & HEALTH & WELLNESS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      {/* ROW 1: TWO-COLUMN GRID (TODAY'S COMPLIANCE STATUS & HEALTH & WELLNESS) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
 
-        {/* LEFT COLUMN — Memory Gallery Card */}
-        <section className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm space-y-6 transition-colors">
-          <div className="flex items-center gap-4 border-b border-border/60 dark:border-ink-soft/30 pb-5">
-            <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
-              <Heart className="w-4 h-4 fill-terracotta/20" />
+        {/* LEFT COLUMN — Today's Compliance Status */}
+        <section
+          aria-label="Today's Reminder Status"
+          className="h-full flex flex-col bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm transition-colors"
+        >
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 dark:border-ink-soft/30 pb-5 mb-6">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-gold shrink-0">
+                <Bell className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-ink dark:text-cream truncate">
+                  Today's Compliance Status
+                </h2>
+                <p className="text-xs text-ink-soft dark:text-cream/70 mt-0.5">
+                  Daily reminder completion & 5-day history for {patientName}
+                </p>
+              </div>
             </div>
-            <div className="space-y-0.5">
+
+            {/* Summary Badge */}
+            {compliance && !isLoadingCompliance && (
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${
+                compliance.summary.hasMissedToday
+                  ? 'bg-gold/15 text-gold border-gold/40'
+                  : 'bg-sage/15 text-sage border-sage/30'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  compliance.summary.hasMissedToday ? 'bg-gold' : 'bg-sage'
+                }`} />
+                <span className="truncate">{compliance.summary.summaryText}</span>
+              </div>
+            )}
+          </div>
+
+          {isLoadingCompliance ? (
+            <div className="space-y-3 animate-pulse">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="h-11 bg-cream dark:bg-ink-soft/30 rounded-xl border border-border/60 dark:border-ink-soft/30" />
+              ))}
+            </div>
+          ) : compliance ? (
+            <div className="flex-1 flex flex-col justify-between space-y-6 max-h-[500px] overflow-y-auto overflow-x-hidden careplan-scrollbar pr-1.5 -mr-1.5">
+              {/* TODAY'S ITEMS LIST */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/60 px-0.5">
+                  Due Today
+                </h3>
+                {compliance.todayItems.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {compliance.todayItems.map((item) => {
+                      const statusStyles = {
+                        completed: {
+                          bg: 'bg-sage/10 dark:bg-sage/15',
+                          border: 'border-sage/40',
+                          iconBg: 'bg-sage/20 text-sage',
+                          text: 'text-sage',
+                          label: 'Completed',
+                        },
+                        missed: {
+                          bg: 'bg-gold/10 dark:bg-gold/15',
+                          border: 'border-gold/40',
+                          iconBg: 'bg-gold/20 text-gold',
+                          text: 'text-gold',
+                          label: 'Missed',
+                        },
+                        pending: {
+                          bg: 'bg-cream/60 dark:bg-ink-soft/30',
+                          border: 'border-border/60 dark:border-ink-soft/30',
+                          iconBg: 'bg-cream dark:bg-ink-soft/40 text-ink-soft dark:text-cream/60',
+                          text: 'text-ink-soft dark:text-cream/60',
+                          label: 'Pending',
+                        },
+                      };
+                      const s = statusStyles[item.status] || statusStyles.pending;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${s.iconBg}`}>
+                              {item.status === 'completed' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                              {item.status === 'missed' && <AlertCircle className="w-3.5 h-3.5" />}
+                              {item.status === 'pending' && <Clock className="w-3.5 h-3.5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-semibold text-ink dark:text-cream truncate block">{item.label}</span>
+                              <span className="text-[11px] text-ink-soft dark:text-cream/60 block mt-0.5">{item.category}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
+                            <span className="px-2.5 py-1 bg-cream dark:bg-ink-soft/30 border border-border/60 dark:border-ink-soft/30 rounded-full font-bold text-ink-soft dark:text-cream/80 text-[11px]">
+                              {item.time}
+                            </span>
+                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs ${s.bg} ${s.border} ${s.text}`}>
+                              {s.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-ink-soft dark:text-cream/60 py-3">No reminders scheduled for today.</p>
+                )}
+              </div>
+
+              {/* 5-DAY SHORT HISTORY */}
+              {compliance.pastDays.length > 0 && (
+                <div className="pt-5 border-t border-border/60 dark:border-ink-soft/30 mt-auto">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/60 mb-3 px-0.5">
+                    5-Day Completion History
+                  </h3>
+                  <div className="grid grid-cols-5 gap-1 sm:gap-2">
+                    {compliance.pastDays.map((day, index) => {
+                      const allDone = day.missed === 0;
+                      const anyMissed = day.missed > 0;
+                      const isFirst = index === 0;
+                      const isLast = index === compliance.pastDays.length - 1;
+                      return (
+                        <div
+                          key={day.dayOffset}
+                          className="relative flex flex-col items-center gap-1 min-w-0 group/day cursor-default"
+                        >
+                          {/* Custom Styled Tooltip with edge-aware positioning */}
+                          <div
+                            role="tooltip"
+                            className={`absolute bottom-full mb-2 ${
+                              isFirst
+                                ? 'left-0'
+                                : isLast
+                                  ? 'right-0'
+                                  : 'left-1/2 -translate-x-1/2'
+                            } px-2.5 py-1.5 bg-ink/95 dark:bg-surface text-surface dark:text-ink text-xs font-medium rounded-lg shadow-xl whitespace-nowrap opacity-0 translate-y-1 group-hover/day:opacity-100 group-hover/day:translate-y-0 transition-all duration-150 pointer-events-none z-50 border border-border/20 dark:border-ink-soft/40 flex flex-col items-center gap-0.5`}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold">
+                              <span>{day.dateLabel}:</span>
+                              <span>{day.completed}/{day.total} completed</span>
+                            </div>
+                            {day.missed > 0 ? (
+                              <span className="text-[11px] text-terracotta font-semibold">
+                                Missed: {getMissedReminderNames(day)}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-sage font-medium">
+                                All reminders completed
+                              </span>
+                            )}
+                            {/* Tooltip arrow pointer */}
+                            <div className={`absolute top-full ${
+                              isFirst
+                                ? 'left-3'
+                                : isLast
+                                  ? 'right-3'
+                                  : 'left-1/2 -translate-x-1/2'
+                            } -mt-px border-4 border-transparent border-t-ink/95 dark:border-t-surface`} />
+                          </div>
+
+                          {/* Day label */}
+                          <span className="text-[10px] font-bold text-ink-soft dark:text-cream/60 uppercase">{day.dateLabel}</span>
+
+                          {/* Progress circle / indicator */}
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-bold transition-colors ${
+                            allDone
+                              ? 'bg-sage/15 border-sage/50 text-sage'
+                              : anyMissed
+                                ? 'bg-gold/15 border-gold/50 text-gold'
+                                : 'bg-cream dark:bg-ink-soft/40 border-border/60 dark:border-ink-soft/30 text-ink-soft dark:text-cream/60'
+                          }`}>
+                            {day.rate}%
+                          </div>
+
+                          {/* Mini missed indicator */}
+                          <div className="flex items-center gap-0.5">
+                            {day.missed > 0 && (
+                              <span className="text-[10px] text-gold font-semibold">{day.missed}✗</span>
+                            )}
+                            {day.missed === 0 && (
+                              <span className="text-[10px] text-sage font-semibold">✓</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-ink-soft dark:text-cream/60 py-4">Unable to load compliance data.</p>
+          )}
+        </section>
+
+        {/* RIGHT COLUMN — Health & Wellness Card */}
+        <section
+          aria-label="Health & Wellness"
+          className="h-full flex flex-col bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm space-y-6 transition-colors"
+        >
+          {/* Card Header */}
+          <div className="flex items-center gap-2 border-b border-border/60 dark:border-ink-soft/30 pb-5">
+            <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div>
               <h2 className="text-lg font-bold text-ink dark:text-cream">
-                Memory Gallery
+                Health & Wellness
               </h2>
-              <p className="text-xs text-ink-soft dark:text-cream/70">
-                Upload photos of loved ones to help with memory exercises.
+              <p className="text-xs text-ink-soft dark:text-cream/70 mt-0.5">
+                Daily schedules & medication reminders for {patientName}
               </p>
             </div>
           </div>
 
-              {memoryError && (
-                <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-center gap-2 text-xs text-ink dark:text-cream">
-                  <AlertCircle className="w-4 h-4 text-terracotta shrink-0" />
-                  <span>{memoryError}</span>
+          {reminderError && (
+            <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-center gap-2 text-xs text-ink dark:text-cream">
+              <AlertCircle className="w-4 h-4 text-terracotta shrink-0" />
+              <span>{reminderError}</span>
+            </div>
+          )}
+
+          {isLoadingReminders ? (
+            <div className="space-y-4 animate-pulse">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 h-24" />
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1 space-y-4 max-h-[500px] overflow-y-auto overflow-x-hidden careplan-scrollbar pr-1.5 -mr-1.5">
+
+              {/* PANEL 1: Medication */}
+              <div className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 space-y-3 relative group">
+                <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Pill className="w-4 h-4 text-terracotta" />
+                    <h3 className="text-sm font-bold text-ink dark:text-cream">
+                      Medication
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openCategoryEdit('medication')}
+                    aria-label="Edit Medication schedule"
+                    className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {reminders.medication.map((med) => {
+                    const isAlarmActive = med.active !== false;
+                    return (
+                      <div
+                        key={med.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
+                      >
+                        <span className="font-semibold text-ink dark:text-cream">• {med.label}</span>
+                        <div className="flex items-center justify-between sm:justify-end gap-2.5">
+                          <span className="px-2.5 py-1 bg-cream dark:bg-ink-soft/30 border border-border/60 dark:border-ink-soft/30 rounded-full font-bold text-ink-soft dark:text-cream/80 text-[11px]">
+                            {med.time}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleAlarmStatus('medication', med.id)}
+                            aria-label={isAlarmActive ? 'Alarm is Active (Click to mute)' : 'Alarm is Off (Click to activate)'}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
+                              isAlarmActive
+                                ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
+                                : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isAlarmActive ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
+                            <span className="flex items-center gap-1.5">
+                              {isAlarmActive ? (
+                                <>
+                                  <Bell className="w-3.5 h-3.5 text-sage" />
+                                  <span>Alarm Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BellOff className="w-3.5 h-3.5 opacity-60" />
+                                  <span>Alarm Off</span>
+                                </>
+                              )}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* PANEL 2: Hydration */}
+              <div className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 space-y-3 relative group">
+                <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Droplets className="w-4 h-4 text-terracotta" />
+                    <h3 className="text-sm font-bold text-ink dark:text-cream">
+                      Hydration
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openCategoryEdit('hydration')}
+                    aria-label="Edit Hydration schedule"
+                    className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs">
+                  <div>
+                    <p className="font-semibold text-ink dark:text-cream">{reminders.hydration.label}</p>
+                    <span className="text-[11px] font-semibold text-ink-soft dark:text-cream/70 block mt-0.5">{reminders.hydration.schedule}</span>
+                  </div>
+                  <div className="flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleAlarmStatus('hydration')}
+                      aria-label={reminders.hydration?.active !== false ? 'Alarm is Active' : 'Alarm is Off'}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
+                        reminders.hydration?.active !== false
+                          ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
+                          : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${reminders.hydration?.active !== false ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
+                      <span className="flex items-center gap-1.5">
+                        {reminders.hydration?.active !== false ? (
+                          <>
+                            <Bell className="w-3.5 h-3.5 text-sage" />
+                            <span>Alarm Active</span>
+                          </>
+                        ) : (
+                          <>
+                            <BellOff className="w-3.5 h-3.5 opacity-60" />
+                            <span>Alarm Off</span>
+                          </>
+                        )}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* PANEL 3: Meals */}
+              <div className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 space-y-3 relative group">
+                <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Utensils className="w-4 h-4 text-terracotta" />
+                    <h3 className="text-sm font-bold text-ink dark:text-cream">
+                      Meals
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openCategoryEdit('meals')}
+                    aria-label="Edit Meals schedule"
+                    className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {reminders.meals.map((meal) => {
+                    const isAlarmActive = meal.active !== false;
+                    return (
+                      <div
+                        key={meal.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
+                      >
+                        <span className="font-semibold text-ink dark:text-cream">• {meal.label}</span>
+                        <div className="flex items-center justify-between sm:justify-end gap-2.5">
+                          <span className="px-2.5 py-1 bg-cream dark:bg-ink-soft/30 border border-border/60 dark:border-ink-soft/30 rounded-full font-bold text-ink-soft dark:text-cream/80 text-[11px]">
+                            {meal.time}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleAlarmStatus('meals', meal.id)}
+                            aria-label={isAlarmActive ? 'Alarm is Active' : 'Alarm is Off'}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
+                              isAlarmActive
+                                ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
+                                : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isAlarmActive ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
+                            <span className="flex items-center gap-1.5">
+                              {isAlarmActive ? (
+                                <>
+                                  <Bell className="w-3.5 h-3.5 text-sage" />
+                                  <span>Alarm Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BellOff className="w-3.5 h-3.5 opacity-60" />
+                                  <span>Alarm Off</span>
+                                </>
+                              )}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Reminders List */}
+              {reminders.custom && reminders.custom.length > 0 && (
+                <div className="space-y-2.5 pt-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/60 px-1">
+                    Custom Reminders
+                  </h4>
+                  {reminders.custom.map((cust) => {
+                    const isAlarmActive = cust.active !== false;
+                    return (
+                      <div
+                        key={cust.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
+                      >
+                        <div>
+                          <p className="font-semibold text-ink dark:text-cream">{cust.label}</p>
+                          <p className="text-[11px] text-ink-soft dark:text-cream/60">{cust.frequency}</p>
+                        </div>
+                        <div className="flex items-center justify-between sm:justify-end gap-2">
+                          <span className="px-2.5 py-1 bg-surface dark:bg-ink-soft/40 border border-border/60 text-ink dark:text-cream font-bold rounded-full text-[11px]">
+                            {cust.time}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleAlarmStatus('custom', cust.id)}
+                            aria-label={isAlarmActive ? 'Alarm is Active' : 'Alarm is Off'}
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
+                              isAlarmActive
+                                ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
+                                : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isAlarmActive ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
+                            <span className="flex items-center gap-1.5">
+                              {isAlarmActive ? (
+                                <>
+                                  <Bell className="w-3.5 h-3.5 text-sage" />
+                                  <span>Alarm Active</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BellOff className="w-3.5 h-3.5 opacity-60" />
+                                  <span>Alarm Off</span>
+                                </>
+                              )}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              requestDelete(
+                                `Delete reminder "${cust.label}"?`,
+                                () => handleDeleteCustomReminder(cust.id)
+                              )
+                            }
+                            aria-label={`Delete reminder: ${cust.label}`}
+                            className="shrink-0 p-1.5 rounded-md text-ink-soft/60 hover:text-terracotta dark:text-cream/50 dark:hover:text-terracotta hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
-              {isLoadingMemories ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[1, 2].map((n) => (
-                    <div key={n} className="bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-3 animate-pulse space-y-3">
-                      <div className="aspect-[4/3] w-full bg-border/40 dark:bg-ink-soft/40 rounded-lg" />
-                      <div className="h-4 bg-border/50 dark:bg-ink-soft/40 rounded w-3/4" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {familyMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-3 transition-all hover:shadow-sm flex flex-col justify-between group"
-                    >
-                      <div className="space-y-2.5">
-                        <div className="aspect-[4/3] w-full rounded-lg overflow-hidden bg-surface border border-border/80 dark:border-ink-soft/40 relative">
-                          <img
-                            src={member.photoUrl}
-                            alt={member.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
+              {/* Add Custom Reminder Dashed Button */}
+              <button
+                type="button"
+                onClick={() => setIsCustomModalOpen(true)}
+                className="w-full border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta dark:hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 dark:hover:bg-ink-soft/20 rounded-card p-3 flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-cream transition-colors cursor-pointer min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta group"
+              >
+                <Plus className="w-4 h-4 text-terracotta group-hover:scale-110 transition-transform" />
+                <span className="group-hover:text-terracotta transition-colors">Add Custom Reminder</span>
+              </button>
 
-                        <div className="px-0.5">
-                          <h3 className="text-sm font-bold text-ink dark:text-cream truncate">
-                            {member.name}
-                          </h3>
-                          <p className="text-xs text-ink-soft dark:text-cream/70 flex items-center gap-1 mt-0.5">
-                            <Heart className="w-3.5 h-3.5 text-terracotta fill-terracotta/20 shrink-0" />
-                            <span>{member.relation}</span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+            </div>
+          )}
+        </section>
+
+      </div>
+
+      {/* ROW 2: FULL-WIDTH SECTION: MEMORY GALLERY */}
+      <section
+        aria-label="Memory Gallery"
+        className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 sm:p-8 shadow-sm space-y-6 transition-colors"
+      >
+        {/* Memory Gallery Header */}
+        <div className="flex items-center gap-3.5 border-b border-border/60 dark:border-ink-soft/30 pb-5">
+          <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
+            <Heart className="w-4 h-4 fill-terracotta/20" />
+          </div>
+          <div className="space-y-0.5">
+            <h2 className="text-lg font-bold text-ink dark:text-cream">
+              Memory Gallery
+            </h2>
+            <p className="text-xs text-ink-soft dark:text-cream/70">
+              Upload photos of loved ones and familiar sounds to help with memory retention and comfort for {patientName}.
+            </p>
+          </div>
+        </div>
+
+        {memoryError && (
+          <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-center gap-2 text-xs text-ink dark:text-cream">
+            <AlertCircle className="w-4 h-4 text-terracotta shrink-0" />
+            <span>{memoryError}</span>
+          </div>
+        )}
+
+        {/* Side-by-side 2-column layout for Photos & Familiar Sounds */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* LEFT: Photo Memories Grid */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
+                  <Camera className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-ink dark:text-cream truncate">
+                    Photo Memories
+                  </h3>
+                  <p className="text-xs text-ink-soft dark:text-cream/70 truncate">
+                    Photos of family and friends
+                  </p>
+                </div>
+              </div>
 
               <button
                 type="button"
                 onClick={() => setIsMemoryModalOpen(true)}
-                className="border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 rounded-card p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[180px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta group"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cream/80 dark:bg-ink-soft/30 hover:bg-cream dark:hover:bg-ink-soft/50 border border-border/80 dark:border-ink-soft/40 rounded-lg text-xs font-semibold text-ink dark:text-cream transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta shrink-0"
               >
-                <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 group-hover:border-terracotta flex items-center justify-center text-terracotta transition-colors mb-2">
+                <Plus className="w-3.5 h-3.5 text-terracotta" />
+                <span>{familyMembers.length === 0 ? 'Add First Photo' : 'Add Photo'}</span>
+              </button>
+            </div>
+
+            {isLoadingMemories ? (
+              <div className="grid grid-cols-2 gap-2.5 h-[210px] overflow-hidden">
+                {[1, 2].map((n) => (
+                  <div key={n} className="bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-xl p-2 animate-pulse space-y-2">
+                    <div className="h-20 w-full bg-border/40 dark:bg-ink-soft/40 rounded-md" />
+                    <div className="h-3.5 bg-border/50 dark:bg-ink-soft/40 rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            ) : familyMembers.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => setIsMemoryModalOpen(true)}
+                className="w-full h-[210px] border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta dark:hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 dark:hover:bg-ink-soft/20 rounded-card p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta group"
+              >
+                <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 group-hover:border-terracotta dark:group-hover:border-terracotta mx-auto flex items-center justify-center text-terracotta transition-colors mb-2">
                   <Camera className="w-5 h-5" />
                 </div>
                 <span className="text-xs font-semibold text-ink dark:text-cream group-hover:text-terracotta transition-colors">
-                  Add Another Memory
+                  Add Your First Memory
                 </span>
                 <span className="text-[11px] text-ink-soft dark:text-cream/60 mt-1">
                   JPG, PNG up to 5MB
                 </span>
               </button>
-            </div>
-          )}
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5 h-[210px] overflow-y-auto overflow-x-hidden careplan-scrollbar pr-1.5 -mr-1.5 p-0.5">
+                {familyMembers.map((member) => (
+                  <div
+                    key={member.id}
+                    className="self-start bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-xl p-2 transition-all hover:shadow-sm group"
+                  >
+                    {/* Image — aspect-ratio driven, never stretched by grid cell */}
+                    <div className="h-32 w-full rounded-md overflow-hidden bg-surface border border-border/60 dark:border-ink-soft/30">
+                      <img
+                        src={member.photoUrl}
+                        alt={member.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
 
-          {/* Familiar Sounds Section */}
-          <div className="pt-5 border-t border-border/60 dark:border-ink-soft/30 space-y-4">
+                    {/* Name + delete row */}
+                    <div className="mt-1.5 px-0.5 flex items-center gap-1.5">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-bold text-ink dark:text-cream truncate leading-tight">
+                          {member.name}
+                        </h4>
+                        <p className="text-[11px] text-ink-soft dark:text-cream/70 flex items-center gap-1 mt-0.5">
+                          <Heart className="w-3 h-3 text-terracotta fill-terracotta/20 shrink-0" />
+                          <span className="truncate">{member.relation}</span>
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          requestDelete(
+                            `Delete "${member.name}" from the Memory Gallery?`,
+                            () => handleDeleteMemory(member.id)
+                          )
+                        }
+                        aria-label={`Delete memory: ${member.name}`}
+                        className="shrink-0 p-1 rounded-md text-ink-soft/60 hover:text-terracotta dark:text-cream/50 dark:hover:text-terracotta hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Familiar Sounds Section */}
+          <div className="space-y-4 lg:border-l lg:border-border/60 lg:dark:border-ink-soft/30 lg:pl-8">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
-                  <Volume2 className="w-4 h-4" />
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta shrink-0">
+                  <Volume2 className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-ink dark:text-cream truncate">
@@ -653,29 +1295,28 @@ export const CarePlan = () => {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cream/80 dark:bg-ink-soft/30 hover:bg-cream dark:hover:bg-ink-soft/50 border border-border/80 dark:border-ink-soft/40 rounded-lg text-xs font-semibold text-ink dark:text-cream transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 text-terracotta" />
-                <span>Add Sound</span>
+                <span>{familiarSounds.length === 0 ? 'Add First Sound' : 'Add Sound'}</span>
               </button>
             </div>
 
             {familiarSounds.length === 0 ? (
-              <div className="p-5 bg-cream/30 dark:bg-ink-soft/10 border-2 border-dashed border-border/80 dark:border-ink-soft/40 rounded-card text-center space-y-2">
-                <div className="w-9 h-9 rounded-full bg-surface dark:bg-ink-soft/30 border border-border/70 dark:border-ink-soft/30 mx-auto flex items-center justify-center text-terracotta/80">
-                  <Music className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => setIsSoundModalOpen(true)}
+                className="w-full h-[210px] border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta dark:hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 dark:hover:bg-ink-soft/20 rounded-card p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all outline-none select-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta group"
+              >
+                <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 group-hover:border-terracotta dark:group-hover:border-terracotta mx-auto flex items-center justify-center text-terracotta transition-colors mb-2">
+                  <Music className="w-5 h-5" />
                 </div>
-                <p className="text-xs font-medium text-ink-soft dark:text-cream/70 max-w-sm mx-auto">
-                  Add familiar voices or songs to help with recognition and comfort.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIsSoundModalOpen(true)}
-                  className="text-xs font-semibold text-terracotta hover:underline inline-flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Upload your first sound clip</span>
-                </button>
-              </div>
+                <span className="text-xs font-semibold text-ink dark:text-cream group-hover:text-terracotta transition-colors">
+                  Add Your First Sound
+                </span>
+                <span className="text-[11px] text-ink-soft dark:text-cream/60 mt-1">
+                  MP3, WAV up to 10MB
+                </span>
+              </button>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5 h-[210px] overflow-y-auto overflow-x-hidden careplan-scrollbar pr-1.5 -mr-1.5 p-0.5">
                 {familiarSounds.map((sound) => (
                   <SoundClipCard
                     key={sound.id}
@@ -686,297 +1327,8 @@ export const CarePlan = () => {
               </div>
             )}
           </div>
-        </section>
-
-            {/* RIGHT COLUMN — Health & Wellness Card */}
-            <section className="bg-surface dark:bg-ink-soft/20 border border-border/80 dark:border-ink-soft/40 rounded-card p-6 shadow-sm space-y-6 transition-colors">
-              {/* Card Header */}
-              <div className="flex items-center gap-2 border-b border-border/60 dark:border-ink-soft/30 pb-5">
-                <div className="w-8 h-8 rounded-full bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 flex items-center justify-center text-terracotta">
-                  <Activity className="w-4 h-4" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-ink dark:text-cream">
-                    Health & Wellness
-                  </h2>
-                  <p className="text-xs text-ink-soft dark:text-cream/70 mt-0.5">
-                    Daily schedules & medication reminders for {patientName}
-                  </p>
-                </div>
-              </div>
-
-              {reminderError && (
-                <div className="p-3.5 bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-lg flex items-center gap-2 text-xs text-ink dark:text-cream">
-                  <AlertCircle className="w-4 h-4 text-terracotta shrink-0" />
-                  <span>{reminderError}</span>
-                </div>
-              )}
-
-              {isLoadingReminders ? (
-                <div className="space-y-4 animate-pulse">
-                  {[1, 2, 3].map((n) => (
-                    <div key={n} className="bg-cream dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 h-24" />
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-
-                  {/* PANEL 1: Medication */}
-                  <div className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 space-y-3 relative group">
-                    <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Pill className="w-4 h-4 text-terracotta" />
-                        <h3 className="text-sm font-bold text-ink dark:text-cream">
-                          Medication
-                        </h3>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => openCategoryEdit('medication')}
-                        aria-label="Edit Medication schedule"
-                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      {reminders.medication.map((med) => {
-                        const isAlarmActive = med.active !== false;
-                        return (
-                          <div
-                            key={med.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
-                          >
-                            <span className="font-semibold text-ink dark:text-cream">• {med.label}</span>
-                            <div className="flex items-center justify-between sm:justify-end gap-2.5">
-                              <span className="px-2.5 py-1 bg-cream dark:bg-ink-soft/30 border border-border/60 dark:border-ink-soft/30 rounded-full font-bold text-ink-soft dark:text-cream/80 text-[11px]">
-                                {med.time}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleAlarmStatus('medication', med.id)}
-                                aria-label={isAlarmActive ? 'Alarm is Active (Click to mute)' : 'Alarm is Off (Click to activate)'}
-                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
-                                  isAlarmActive
-                                    ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
-                                    : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
-                                }`}
-                              >
-                                <span className={`w-2 h-2 rounded-full ${isAlarmActive ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
-                                <span className="flex items-center gap-1.5">
-                                  {isAlarmActive ? (
-                                    <>
-                                      <Bell className="w-3.5 h-3.5 text-sage" />
-                                      <span>Alarm Active</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <BellOff className="w-3.5 h-3.5 opacity-60" />
-                                      <span>Alarm Off</span>
-                                    </>
-                                  )}
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* PANEL 2: Hydration */}
-                  <div className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 space-y-3 relative group">
-                    <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Droplets className="w-4 h-4 text-terracotta" />
-                        <h3 className="text-sm font-bold text-ink dark:text-cream">
-                          Hydration
-                        </h3>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => openCategoryEdit('hydration')}
-                        aria-label="Edit Hydration schedule"
-                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs">
-                      <div>
-                        <p className="font-semibold text-ink dark:text-cream">{reminders.hydration.label}</p>
-                        <span className="text-[11px] font-semibold text-ink-soft dark:text-cream/70 block mt-0.5">{reminders.hydration.schedule}</span>
-                      </div>
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleAlarmStatus('hydration')}
-                          aria-label={reminders.hydration?.active !== false ? 'Alarm is Active' : 'Alarm is Off'}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
-                            reminders.hydration?.active !== false
-                              ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
-                              : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
-                          }`}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${reminders.hydration?.active !== false ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
-                          <span className="flex items-center gap-1.5">
-                            {reminders.hydration?.active !== false ? (
-                              <>
-                                <Bell className="w-3.5 h-3.5 text-sage" />
-                                <span>Alarm Active</span>
-                              </>
-                            ) : (
-                              <>
-                                <BellOff className="w-3.5 h-3.5 opacity-60" />
-                                <span>Alarm Off</span>
-                              </>
-                            )}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PANEL 3: Meals */}
-                  <div className="bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-card p-4 space-y-3 relative group">
-                    <div className="flex items-center justify-between border-b border-border/60 dark:border-ink-soft/30 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <Utensils className="w-4 h-4 text-terracotta" />
-                        <h3 className="text-sm font-bold text-ink dark:text-cream">
-                          Meals
-                        </h3>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => openCategoryEdit('meals')}
-                        aria-label="Edit Meals schedule"
-                        className="p-1.5 text-ink-soft dark:text-cream/70 hover:text-ink dark:hover:text-cream rounded-lg hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      {reminders.meals.map((meal) => {
-                        const isAlarmActive = meal.active !== false;
-                        return (
-                          <div
-                            key={meal.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-surface dark:bg-ink-soft/40 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
-                          >
-                            <span className="font-semibold text-ink dark:text-cream">• {meal.label}</span>
-                            <div className="flex items-center justify-between sm:justify-end gap-2.5">
-                              <span className="px-2.5 py-1 bg-cream dark:bg-ink-soft/30 border border-border/60 dark:border-ink-soft/30 rounded-full font-bold text-ink-soft dark:text-cream/80 text-[11px]">
-                                {meal.time}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleAlarmStatus('meals', meal.id)}
-                                aria-label={isAlarmActive ? 'Alarm is Active' : 'Alarm is Off'}
-                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
-                                  isAlarmActive
-                                    ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
-                                    : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
-                                }`}
-                              >
-                                <span className={`w-2 h-2 rounded-full ${isAlarmActive ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
-                                <span className="flex items-center gap-1.5">
-                                  {isAlarmActive ? (
-                                    <>
-                                      <Bell className="w-3.5 h-3.5 text-sage" />
-                                      <span>Alarm Active</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <BellOff className="w-3.5 h-3.5 opacity-60" />
-                                      <span>Alarm Off</span>
-                                    </>
-                                  )}
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Custom Reminders List */}
-                  {reminders.custom && reminders.custom.length > 0 && (
-                    <div className="space-y-2.5 pt-2">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-ink-soft dark:text-cream/60 px-1">
-                        Custom Reminders
-                      </h4>
-                      {reminders.custom.map((cust) => {
-                        const isAlarmActive = cust.active !== false;
-                        return (
-                          <div
-                            key={cust.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-cream/60 dark:bg-ink-soft/30 border border-border/80 dark:border-ink-soft/40 rounded-xl shadow-2xs hover:border-terracotta/30 transition-colors text-xs"
-                          >
-                            <div>
-                              <p className="font-semibold text-ink dark:text-cream">{cust.label}</p>
-                              <p className="text-[11px] text-ink-soft dark:text-cream/60">{cust.frequency}</p>
-                            </div>
-                            <div className="flex items-center justify-between sm:justify-end gap-2.5">
-                              <span className="px-2.5 py-1 bg-surface dark:bg-ink-soft/40 border border-border/60 text-ink dark:text-cream font-bold rounded-full text-[11px]">
-                                {cust.time}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={() => toggleAlarmStatus('custom', cust.id)}
-                                aria-label={isAlarmActive ? 'Alarm is Active' : 'Alarm is Off'}
-                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border shadow-2xs transition-all cursor-pointer select-none active:scale-95 ${
-                                  isAlarmActive
-                                    ? 'bg-sage/20 border-sage/60 text-sage dark:bg-sage/30 dark:text-sage dark:border-sage/60 hover:bg-sage/30'
-                                    : 'bg-cream dark:bg-ink-soft/40 border-border dark:border-ink-soft/50 text-ink-soft dark:text-cream/50 hover:bg-surface'
-                                }`}
-                              >
-                                <span className={`w-2 h-2 rounded-full ${isAlarmActive ? 'bg-sage animate-pulse' : 'bg-ink-soft/40'}`} />
-                                <span className="flex items-center gap-1.5">
-                                  {isAlarmActive ? (
-                                    <>
-                                      <Bell className="w-3.5 h-3.5 text-sage" />
-                                      <span>Alarm Active</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <BellOff className="w-3.5 h-3.5 opacity-60" />
-                                      <span>Alarm Off</span>
-                                    </>
-                                  )}
-                                </span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Add Custom Reminder Dashed Button */}
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomModalOpen(true)}
-                    className="w-full border-2 border-dashed border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/70 rounded-card p-3 flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-cream transition-colors cursor-pointer min-h-[44px] outline-none select-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
-                  >
-                    <Plus className="w-4 h-4 text-terracotta" />
-                    <span>Add Custom Reminder</span>
-                  </button>
-
-                </div>
-              )}
-            </section>
-
-          </div>
+        </div>
+      </section>
       {/* MODAL 1: ADD FAMILY MEMBER */}
       {isMemoryModalOpen && (
         <div className="fixed inset-0 z-50 bg-ink/50 dark:bg-ink/70 flex items-center justify-center p-4">
@@ -1046,7 +1398,7 @@ export const CarePlan = () => {
                     className={`border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[140px] outline-none focus-within:ring-1 focus-within:ring-terracotta ${
                       isDraggingPhoto
                         ? 'border-terracotta bg-terracotta/10 dark:bg-terracotta/15 scale-[1.01] shadow-xs'
-                        : 'border-border/80 dark:border-ink-soft/40 hover:border-terracotta bg-cream/40 dark:bg-ink-soft/20 hover:bg-cream'
+                        : 'border-border/80 dark:border-ink-soft/40 hover:border-terracotta dark:hover:border-terracotta bg-cream/40 dark:bg-ink-soft/20 hover:bg-cream dark:hover:bg-ink-soft/30'
                     }`}
                   >
                     <ImageIcon className={`w-8 h-8 text-terracotta mb-2 transition-transform duration-150 ${isDraggingPhoto ? 'scale-110' : ''}`} />
@@ -1234,7 +1586,11 @@ export const CarePlan = () => {
                           <button
                             type="button"
                             onClick={() =>
-                              setCategoryDraft((prev) => prev.filter((_, i) => i !== idx))
+                              requestDelete(
+                                `Delete "${item.label || `Medication Dose #${idx + 1}`}" from medication schedule?`,
+                                () =>
+                                  setCategoryDraft((prev) => prev.filter((_, i) => i !== idx))
+                              )
                             }
                             aria-label={`Remove medication dose ${idx + 1}`}
                             className="p-1 text-ink-soft/70 hover:text-terracotta dark:text-cream/60 dark:hover:text-terracotta rounded-md hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
@@ -1353,7 +1709,11 @@ export const CarePlan = () => {
                           <button
                             type="button"
                             onClick={() =>
-                              setCategoryDraft((prev) => prev.filter((_, i) => i !== idx))
+                              requestDelete(
+                                `Delete "${item.label || `Meal #${idx + 1}`}" from meals schedule?`,
+                                () =>
+                                  setCategoryDraft((prev) => prev.filter((_, i) => i !== idx))
+                              )
                             }
                             aria-label={`Remove meal ${idx + 1}`}
                             className="p-1 text-ink-soft/70 hover:text-terracotta dark:text-cream/60 dark:hover:text-terracotta rounded-md hover:bg-cream dark:hover:bg-ink-soft/40 transition-colors outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-terracotta"
@@ -1631,7 +1991,7 @@ export const CarePlan = () => {
                     className={`border-2 border-dashed rounded-card p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
                       isDraggingAudio
                         ? 'border-terracotta bg-terracotta/10 dark:bg-terracotta/20 scale-[0.99]'
-                        : 'border-border/80 dark:border-ink-soft/40 hover:border-terracotta/70 bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/60 dark:hover:bg-ink-soft/20'
+                        : 'border-border/80 dark:border-ink-soft/40 hover:border-terracotta dark:hover:border-terracotta bg-cream/30 dark:bg-ink-soft/10 hover:bg-cream/60 dark:hover:bg-ink-soft/20'
                     }`}
                   >
                     <div className="w-10 h-10 rounded-full bg-surface dark:bg-ink-soft/30 border border-border dark:border-ink-soft/40 flex items-center justify-center text-terracotta mb-2">
@@ -1709,6 +2069,20 @@ export const CarePlan = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Reusable Confirm Delete Modal */}
+      {deleteConfirmation.isOpen && (
+        <ConfirmDeleteModal
+          message={deleteConfirmation.message}
+          onConfirm={() => {
+            if (deleteConfirmation.onConfirm) {
+              deleteConfirmation.onConfirm();
+            }
+            closeDeleteConfirmation();
+          }}
+          onCancel={closeDeleteConfirmation}
+        />
       )}
 
     </div>
